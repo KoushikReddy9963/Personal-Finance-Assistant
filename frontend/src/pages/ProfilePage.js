@@ -17,7 +17,7 @@ const ProfilePage = () => {
   const [profileData, setProfileData] = useState({
     name: '',
     email: '',
-    currency: 'USD',
+    currency: 'INR',
     monthlyBudget: 0
   });
 
