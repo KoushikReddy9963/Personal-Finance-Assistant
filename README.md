@@ -267,28 +267,6 @@ graph TD
     P --> R[Single Transaction Creation]
 ```
 
-## 🎨 UI/UX Features
-
-### Modern Design Elements
-- **Gradient Backgrounds**: Beautiful color gradients throughout the application
-- **Smooth Animations**: Hover effects and transitions for better user experience
-- **Responsive Design**: Works seamlessly on desktop, tablet, and mobile devices
-- **Card-based Layout**: Clean, organized information display
-- **Progress Indicators**: Visual feedback for uploads and processing
-
-### Upload Page Features
-- **Drag & Drop Interface**: Intuitive file upload experience
-- **File Type Validation**: Automatic detection and validation of supported formats
-- **Progress Tracking**: Real-time upload and processing progress
-- **Preview Modals**: Review data before importing
-- **Error Handling**: Clear error messages and recovery options
-
-### Dashboard Enhancements
-- **Financial Overview Cards**: Visual representation of key metrics
-- **Interactive Charts**: Dynamic data visualization
-- **Quick Actions**: Easy access to common tasks
-- **Budget Tracking**: Visual budget progress with color-coded indicators
-
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -302,22 +280,7 @@ NODE_ENV=development
 CORS_ORIGIN=http://localhost:3000
 ```
 
-#### Frontend (.env)
-```env
-REACT_APP_API_URL=http://localhost:5000/api
-REACT_APP_ENVIRONMENT=development
-```
-
-### File Upload Configuration
-
-The application supports the following file types:
-- **Images**: JPG, JPEG, PNG, GIF (for OCR processing)
-- **Documents**: PDF (for OCR and transaction extraction)
-- **Data**: CSV (for bulk transaction import)
-
-Maximum file size: 10MB per file
-
-## 🚀 Deployment
+##  Deployment
 
 ### Production Build
 
@@ -334,42 +297,6 @@ Maximum file size: 10MB per file
    npm run build
    ```
 
-### Docker Deployment
 
-```dockerfile
-# Backend Dockerfile
-FROM node:16-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-EXPOSE 5000
-CMD ["npm", "start"]
-```
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [Tesseract.js](https://github.com/naptha/tesseract.js) for OCR functionality
-- [Bootstrap](https://getbootstrap.com/) for the UI framework
-- [React](https://reactjs.org/) for the frontend framework
-- [Express.js](https://expressjs.com/) for the backend framework
-
-## 📞 Support
-
-For support and questions, please open an issue in the GitHub repository or contact the development team.
-
----
-
-**Made with ❤️ for better financial management**
+**Author : Y sai Koushik Reddy**
