@@ -11,17 +11,6 @@ A modern, full-stack personal finance management application with OCR receipt pr
 - **Budget Tracking**: Set monthly budgets and monitor spending
 - **Modern UI**: Beautiful, responsive design with gradient backgrounds and smooth animations
 
-## Table of Contents
-
-- [Features](#-features)
-- [Technology Stack](#-technology-stack)
-- [Installation](#-installation)
-- [Usage](#-usage)
-- [API Documentation](#-api-documentation)
-- [Workflow Diagrams](#-workflow-diagrams)
-- [Contributing](#-contributing)
-- [License](#-license)
-
 ## Technology Stack
 
 ### Frontend
