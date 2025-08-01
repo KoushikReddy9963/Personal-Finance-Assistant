@@ -94,24 +94,26 @@ const DashboardPage = () => {
       {/* Welcome Section */}
       <Row className="mb-4">
         <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2 className="mb-1">Welcome back, {user?.name}!</h2>
-              <p className="text-muted mb-0">Here's your financial overview for this month</p>
-            </div>
-            <div>
-              <Link to="/transactions">
-                <Button variant="primary" className="me-2">
-                  <i className="bi bi-plus-circle me-1"></i>
-                  Add Transaction
-                </Button>
-              </Link>
-              <Link to="/upload">
-                <Button variant="outline-primary">
-                  <i className="bi bi-cloud-upload me-1"></i>
-                  Upload Receipt
-                </Button>
-              </Link>
+          <div className="dashboard-welcome">
+            <div className="d-flex justify-content-between align-items-center">
+              <div>
+                <h2 className="mb-1">Welcome back, {user?.name}!</h2>
+                <p className="mb-0 opacity-75">Here's your financial overview for this month</p>
+              </div>
+              <div>
+                <Link to="/transactions">
+                  <Button variant="light" className="me-2 dashboard-action-btn">
+                    <i className="bi bi-plus-circle me-1"></i>
+                    Add Transaction
+                  </Button>
+                </Link>
+                <Link to="/upload">
+                  <Button variant="outline-light" className="dashboard-action-btn">
+                    <i className="bi bi-cloud-upload me-1"></i>
+                    Upload Receipt
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </Col>
@@ -122,8 +124,10 @@ const DashboardPage = () => {
         <Col md={3} className="mb-3">
           <Card className="stat-card h-100 border-0 shadow-sm">
             <Card.Body className="text-center">
-              <div className="d-flex justify-content-center align-items-center mb-2">
-                <i className="bi bi-arrow-up-circle text-success me-2" style={{ fontSize: '2rem' }}></i>
+              <div className="d-flex justify-content-center align-items-center mb-3">
+                <div className="stat-icon-wrapper income-icon">
+                  <i className="bi bi-arrow-up-circle"></i>
+                </div>
               </div>
               <div className="stat-value text-success">
                 {formatCurrency(summary?.summary?.totalIncome || 0)}
@@ -136,8 +140,10 @@ const DashboardPage = () => {
         <Col md={3} className="mb-3">
           <Card className="stat-card h-100 border-0 shadow-sm">
             <Card.Body className="text-center">
-              <div className="d-flex justify-content-center align-items-center mb-2">
-                <i className="bi bi-arrow-down-circle text-danger me-2" style={{ fontSize: '2rem' }}></i>
+              <div className="d-flex justify-content-center align-items-center mb-3">
+                <div className="stat-icon-wrapper expense-icon">
+                  <i className="bi bi-arrow-down-circle"></i>
+                </div>
               </div>
               <div className="stat-value text-danger">
                 {formatCurrency(summary?.summary?.totalExpenses || 0)}
@@ -150,8 +156,10 @@ const DashboardPage = () => {
         <Col md={3} className="mb-3">
           <Card className="stat-card h-100 border-0 shadow-sm">
             <Card.Body className="text-center">
-              <div className="d-flex justify-content-center align-items-center mb-2">
-                <i className="bi bi-wallet2 text-primary me-2" style={{ fontSize: '2rem' }}></i>
+              <div className="d-flex justify-content-center align-items-center mb-3">
+                <div className="stat-icon-wrapper net-icon">
+                  <i className="bi bi-wallet2"></i>
+                </div>
               </div>
               <div className={`stat-value ${(summary?.summary?.netIncome || 0) >= 0 ? 'text-success' : 'text-danger'}`}>
                 {formatCurrency(summary?.summary?.netIncome || 0)}
@@ -164,8 +172,10 @@ const DashboardPage = () => {
         <Col md={3} className="mb-3">
           <Card className="stat-card h-100 border-0 shadow-sm">
             <Card.Body className="text-center">
-              <div className="d-flex justify-content-center align-items-center mb-2">
-                <i className="bi bi-percent text-info me-2" style={{ fontSize: '2rem' }}></i>
+              <div className="d-flex justify-content-center align-items-center mb-3">
+                <div className="stat-icon-wrapper savings-icon">
+                  <i className="bi bi-percent"></i>
+                </div>
               </div>
               <div className="stat-value text-info">
                 {summary?.summary?.savingsRate || 0}%
@@ -179,18 +189,21 @@ const DashboardPage = () => {
       <Row>
         {/* Recent Transactions */}
         <Col lg={8} className="mb-4">
-          <Card className="border-0 shadow-sm">
-            <Card.Header className="bg-white border-0">
+          <Card className="border-0 shadow-sm dashboard-transactions-card">
+            <Card.Header className="bg-white border-0 transactions-header">
               <div className="d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">Recent Transactions</h5>
-                <Link to="/transactions" className="btn btn-sm btn-outline-primary">
+                <h5 className="mb-0">
+                  <i className="bi bi-clock-history me-2"></i>
+                  Recent Transactions
+                </h5>
+                <Link to="/transactions" className="btn btn-sm btn-outline-primary view-all-btn">
                   View All
                 </Link>
               </div>
             </Card.Header>
             <Card.Body className="p-0">
               {recentTransactions.length > 0 ? (
-                <Table responsive className="mb-0">
+                <Table responsive className="mb-0 transactions-table">
                   <thead>
                     <tr>
                       <th>Description</th>
@@ -201,22 +214,24 @@ const DashboardPage = () => {
                   </thead>
                   <tbody>
                     {recentTransactions.map((transaction) => (
-                      <tr key={transaction._id}>
+                      <tr key={transaction._id} className="transaction-row">
                         <td>
                           <div className="d-flex align-items-center">
-                            <i className={`${getTransactionIcon(transaction.type)} text-${getTransactionTypeColor(transaction.type)} me-2`}></i>
-                            {transaction.description}
+                            <div className={`transaction-icon-wrapper ${getTransactionTypeColor(transaction.type)}-icon`}>
+                              <i className={`${getTransactionIcon(transaction.type)}`}></i>
+                            </div>
+                            <span className="ms-2">{transaction.description}</span>
                           </div>
                         </td>
                         <td>
-                          <Badge bg="secondary" className="text-white">
+                          <Badge bg="secondary" className="text-white category-badge">
                             {transaction.category}
                           </Badge>
                         </td>
-                        <td className="text-muted">
+                        <td className="text-muted transaction-date">
                           {formatDate(transaction.date)}
                         </td>
-                        <td className={`text-end text-${getTransactionTypeColor(transaction.type)}`}>
+                        <td className={`text-end text-${getTransactionTypeColor(transaction.type)} transaction-amount`}>
                           {transaction.type === 'income' ? '+' : '-'}
                           {formatCurrency(transaction.amount)}
                         </td>
@@ -225,12 +240,12 @@ const DashboardPage = () => {
                   </tbody>
                 </Table>
               ) : (
-                <div className="text-center py-5">
+                <div className="text-center py-5 empty-state">
                   <i className="bi bi-inbox display-4 text-muted"></i>
                   <h5 className="mt-3 text-muted">No transactions yet</h5>
                   <p className="text-muted">Start by adding your first transaction!</p>
                   <Link to="/transactions">
-                    <Button variant="primary">
+                    <Button variant="primary" className="add-first-transaction-btn">
                       <i className="bi bi-plus-circle me-1"></i>
                       Add Transaction
                     </Button>
@@ -244,25 +259,28 @@ const DashboardPage = () => {
         {/* Quick Actions & Budget */}
         <Col lg={4}>
           {/* Quick Actions */}
-          <Card className="border-0 shadow-sm mb-4">
-            <Card.Header className="bg-white border-0">
-              <h5 className="mb-0">Quick Actions</h5>
+          <Card className="border-0 shadow-sm mb-4 quick-actions-dashboard">
+            <Card.Header className="bg-white border-0 quick-actions-header">
+              <h5 className="mb-0">
+                <i className="bi bi-lightning me-2"></i>
+                Quick Actions
+              </h5>
             </Card.Header>
             <Card.Body>
               <div className="d-grid gap-2">
-                <Link to="/transactions" className="btn btn-outline-primary">
+                <Link to="/transactions" className="btn btn-outline-primary quick-action-link">
                   <i className="bi bi-plus-circle me-2"></i>
                   Add Income/Expense
                 </Link>
-                <Link to="/upload" className="btn btn-outline-secondary">
+                <Link to="/upload" className="btn btn-outline-secondary quick-action-link">
                   <i className="bi bi-camera me-2"></i>
                   Scan Receipt
                 </Link>
-                <Link to="/analytics" className="btn btn-outline-info">
+                <Link to="/analytics" className="btn btn-outline-info quick-action-link">
                   <i className="bi bi-bar-chart me-2"></i>
                   View Analytics
                 </Link>
-                <Link to="/profile" className="btn btn-outline-warning">
+                <Link to="/profile" className="btn btn-outline-warning quick-action-link">
                   <i className="bi bi-gear me-2"></i>
                   Settings
                 </Link>
@@ -272,19 +290,22 @@ const DashboardPage = () => {
 
           {/* Budget Status */}
           {user?.monthlyBudget > 0 && (
-            <Card className="border-0 shadow-sm">
-              <Card.Header className="bg-white border-0">
-                <h5 className="mb-0">Monthly Budget</h5>
+            <Card className="border-0 shadow-sm budget-card">
+              <Card.Header className="bg-white border-0 budget-header">
+                <h5 className="mb-0">
+                  <i className="bi bi-piggy-bank me-2"></i>
+                  Monthly Budget
+                </h5>
               </Card.Header>
               <Card.Body>
-                <div className="mb-3">
-                  <div className="d-flex justify-content-between">
-                    <span>Spent</span>
-                    <span>{formatCurrency(summary?.summary?.totalExpenses || 0)}</span>
+                <div className="budget-stats mb-3">
+                  <div className="budget-stat-item">
+                    <span className="budget-label">Spent</span>
+                    <span className="budget-value spent">{formatCurrency(summary?.summary?.totalExpenses || 0)}</span>
                   </div>
-                  <div className="d-flex justify-content-between">
-                    <span>Budget</span>
-                    <span>{formatCurrency(user.monthlyBudget)}</span>
+                  <div className="budget-stat-item">
+                    <span className="budget-label">Budget</span>
+                    <span className="budget-value budget">{formatCurrency(user.monthlyBudget)}</span>
                   </div>
                 </div>
                 
@@ -296,18 +317,20 @@ const DashboardPage = () => {
                   
                   return (
                     <>
-                      <div className="progress mb-3" style={{ height: '10px' }}>
-                        <div 
-                          className={`progress-bar ${percentage > 90 ? 'bg-danger' : percentage > 70 ? 'bg-warning' : 'bg-success'}`}
-                          style={{ width: `${Math.min(percentage, 100)}%` }}
-                        ></div>
+                      <div className="budget-progress-container">
+                        <div className="progress budget-progress" style={{ height: '12px' }}>
+                          <div 
+                            className={`progress-bar ${percentage > 90 ? 'bg-danger' : percentage > 70 ? 'bg-warning' : 'bg-success'}`}
+                            style={{ width: `${Math.min(percentage, 100)}%` }}
+                          ></div>
+                        </div>
                       </div>
                       
-                      <div className="text-center">
-                        <div className={`h5 ${remaining >= 0 ? 'text-success' : 'text-danger'}`}>
+                      <div className="text-center budget-summary">
+                        <div className={`budget-remaining ${remaining >= 0 ? 'text-success' : 'text-danger'}`}>
                           {formatCurrency(Math.abs(remaining))} {remaining >= 0 ? 'remaining' : 'over budget'}
                         </div>
-                        <small className="text-muted">
+                        <small className="text-muted budget-percentage">
                           {percentage.toFixed(1)}% of budget used
                         </small>
                       </div>

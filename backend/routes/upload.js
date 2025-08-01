@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const Tesseract = require('tesseract.js');
 const pdf = require('pdf-parse');
+const csv = require('csv-parser');
 const Transaction = require('../models/Transaction');
 const auth = require('../middleware/auth');
 
@@ -25,11 +26,22 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  // Accept images and PDFs
-  if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+  // Accept images, PDFs, and CSV files
+  const allowedTypes = [
+    'image/jpeg',
+    'image/jpg', 
+    'image/png',
+    'image/gif',
+    'application/pdf',
+    'text/csv',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ];
+  
+  if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Only image files and PDFs are allowed'), false);
+    cb(new Error(`File type ${file.mimetype} is not supported. Please use JPG, PNG, PDF, or CSV files.`), false);
   }
 };
 
@@ -55,13 +67,17 @@ const extractReceiptData = async (imagePath) => {
     let merchantName = '';
     let date = new Date();
     let items = [];
+    let tax = 0;
+    let subtotal = 0;
 
     // Look for total amount (various patterns)
     const totalPatterns = [
       /total[:\s]*\$?([0-9]+\.?[0-9]*)/i,
       /amount[:\s]*\$?([0-9]+\.?[0-9]*)/i,
       /\$([0-9]+\.?[0-9]*)\s*total/i,
-      /\$([0-9]+\.[0-9]{2})/g
+      /\$([0-9]+\.[0-9]{2})/g,
+      /grand\s*total[:\s]*\$?([0-9]+\.?[0-9]*)/i,
+      /final\s*total[:\s]*\$?([0-9]+\.?[0-9]*)/i
     ];
 
     for (const line of lines) {
@@ -85,15 +101,18 @@ const extractReceiptData = async (imagePath) => {
     const datePatterns = [
       /(\d{1,2}\/\d{1,2}\/\d{4})/,
       /(\d{1,2}-\d{1,2}-\d{4})/,
-      /(\d{4}-\d{1,2}-\d{1,2})/
+      /(\d{4}-\d{1,2}-\d{1,2})/,
+      /(\d{1,2}\/\d{1,2}\/\d{2})/,
+      /(\d{1,2}-\d{1,2}-\d{2})/
     ];
 
     for (const line of lines) {
       for (const pattern of datePatterns) {
         const match = line.match(pattern);
         if (match) {
-          date = new Date(match[1]);
-          if (!isNaN(date.getTime())) {
+          const parsedDate = new Date(match[1]);
+          if (!isNaN(parsedDate.getTime())) {
+            date = parsedDate;
             break;
           }
         }
@@ -111,17 +130,93 @@ const extractReceiptData = async (imagePath) => {
       }
     }
 
+    // Determine category based on merchant name
+    const category = determineCategory(merchantName);
+
     return {
       total,
       merchantName,
       date: isNaN(date.getTime()) ? new Date() : date,
       items,
+      category,
       rawText: text
     };
   } catch (error) {
     console.error('OCR extraction error:', error);
     throw new Error('Failed to extract data from receipt');
   }
+};
+
+// Helper function to determine category based on merchant name
+const determineCategory = (merchantName) => {
+  const name = merchantName.toLowerCase();
+  
+  if (name.includes('grocery') || name.includes('food') || name.includes('supermarket') || name.includes('market')) {
+    return 'Food & Dining';
+  } else if (name.includes('gas') || name.includes('fuel') || name.includes('shell') || name.includes('exxon')) {
+    return 'Transportation';
+  } else if (name.includes('amazon') || name.includes('walmart') || name.includes('target') || name.includes('costco')) {
+    return 'Shopping';
+  } else if (name.includes('restaurant') || name.includes('cafe') || name.includes('pizza') || name.includes('burger')) {
+    return 'Food & Dining';
+  } else if (name.includes('uber') || name.includes('lyft') || name.includes('taxi')) {
+    return 'Transportation';
+  } else if (name.includes('netflix') || name.includes('spotify') || name.includes('hulu') || name.includes('amazon prime')) {
+    return 'Entertainment';
+  } else if (name.includes('gym') || name.includes('fitness') || name.includes('planet fitness')) {
+    return 'Health & Fitness';
+  } else {
+    return 'Other';
+  }
+};
+
+// Helper function to parse CSV files
+const parseCSVFile = async (filePath) => {
+  return new Promise((resolve, reject) => {
+    const results = [];
+    
+    fs.createReadStream(filePath)
+      .pipe(csv())
+      .on('data', (data) => {
+        // Normalize the data
+        const normalizedData = {};
+        
+        // Handle different column name variations
+        const dateField = data.date || data.Date || data.DATE || data.transaction_date;
+        const descriptionField = data.description || data.Description || data.DESCRIPTION || data.memo || data.note;
+        const amountField = data.amount || data.Amount || data.AMOUNT || data.transaction_amount;
+        const categoryField = data.category || data.Category || data.CATEGORY || data.transaction_category;
+        
+        if (dateField && descriptionField && amountField) {
+          // Parse amount (handle different formats)
+          let amount = parseFloat(amountField.replace(/[$,]/g, ''));
+          
+          // Determine if it's income or expense
+          const isIncome = amount > 0 || 
+                          descriptionField.toLowerCase().includes('deposit') ||
+                          descriptionField.toLowerCase().includes('salary') ||
+                          descriptionField.toLowerCase().includes('payment received');
+          
+          normalizedData.date = new Date(dateField);
+          normalizedData.description = descriptionField;
+          normalizedData.amount = Math.abs(amount);
+          normalizedData.type = isIncome ? 'income' : 'expense';
+          normalizedData.category = categoryField || (isIncome ? 'Salary' : 'Other');
+          normalizedData.paymentMethod = 'bank_transfer';
+          
+          // Only add if date is valid
+          if (!isNaN(normalizedData.date.getTime())) {
+            results.push(normalizedData);
+          }
+        }
+      })
+      .on('end', () => {
+        resolve(results);
+      })
+      .on('error', (error) => {
+        reject(error);
+      });
+  });
 };
 
 // Helper function to parse PDF transaction history
@@ -179,111 +274,73 @@ const parsePDFTransactions = async (pdfPath) => {
   }
 };
 
-// @route   POST /api/upload/receipt
-// @desc    Upload and process receipt image/PDF
+// @route   POST /api/upload
+// @desc    Upload and process files (images, PDFs, CSV)
 // @access  Private
-router.post('/receipt', auth, upload.single('receipt'), async (req, res) => {
+router.post('/', auth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
     const filePath = req.file.path;
-    let extractedData;
+    let result = {};
 
-    if (req.file.mimetype === 'application/pdf') {
-      // For PDF receipts, we'll try to extract text directly
-      const dataBuffer = fs.readFileSync(filePath);
-      const pdfData = await pdf(dataBuffer);
-      
-      // Simple text extraction - in a real app, you'd want more sophisticated parsing
-      extractedData = {
-        total: 0,
-        merchantName: 'PDF Receipt',
-        date: new Date(),
-        items: [],
-        rawText: pdfData.text
-      };
-
-      // Try to find total amount in PDF text
-      const totalMatch = pdfData.text.match(/total[:\s]*\$?([0-9]+\.?[0-9]*)/i);
-      if (totalMatch) {
-        extractedData.total = parseFloat(totalMatch[1]);
+    try {
+      if (req.file.mimetype === 'text/csv' || req.file.originalname.toLowerCase().endsWith('.csv')) {
+        // Process CSV file
+        const transactions = await parseCSVFile(filePath);
+        
+        result = {
+          type: 'csv',
+          transactions,
+          message: `Successfully parsed ${transactions.length} transactions from CSV`
+        };
+      } else if (req.file.mimetype === 'application/pdf') {
+        // Process PDF file
+        const transactions = await parsePDFTransactions(filePath);
+        
+        result = {
+          type: 'pdf',
+          transactions,
+          message: `Successfully parsed ${transactions.length} transactions from PDF`
+        };
+      } else if (req.file.mimetype.startsWith('image/')) {
+        // Process image using OCR
+        const extractedData = await extractReceiptData(filePath);
+        
+        result = {
+          type: 'receipt',
+          extractedData,
+          suggestedTransaction: {
+            type: 'expense',
+            amount: extractedData.total,
+            description: `Receipt from ${extractedData.merchantName}`,
+            date: extractedData.date,
+            category: extractedData.category,
+            paymentMethod: 'credit_card'
+          },
+          message: 'Receipt processed successfully'
+        };
+      } else {
+        throw new Error('Unsupported file type');
       }
-    } else {
-      // Process image using OCR
-      extractedData = await extractReceiptData(filePath);
-    }
 
-    // Clean up uploaded file
-    fs.unlinkSync(filePath);
+      // Clean up uploaded file
+      fs.unlinkSync(filePath);
 
-    res.json({
-      message: 'Receipt processed successfully',
-      data: extractedData,
-      suggestedTransaction: {
-        type: 'expense',
-        amount: extractedData.total,
-        description: `Receipt from ${extractedData.merchantName}`,
-        date: extractedData.date,
-        category: 'Other',
-        paymentMethod: 'credit_card'
+      res.json(result);
+    } catch (processingError) {
+      // Clean up file on processing error
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
       }
-    });
+      throw processingError;
+    }
   } catch (error) {
-    // Clean up file on error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-
-    console.error('Receipt processing error:', error);
+    console.error('File upload error:', error);
     res.status(500).json({ 
-      message: 'Error processing receipt',
-      error: error.message 
-    });
-  }
-});
-
-// @route   POST /api/upload/transactions-pdf
-// @desc    Upload and import transaction history from PDF
-// @access  Private
-router.post('/transactions-pdf', auth, upload.single('transactionsPdf'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No PDF file uploaded' });
-    }
-
-    if (req.file.mimetype !== 'application/pdf') {
-      return res.status(400).json({ message: 'Only PDF files are allowed' });
-    }
-
-    const filePath = req.file.path;
-    const transactions = await parsePDFTransactions(filePath);
-
-    // Clean up uploaded file
-    fs.unlinkSync(filePath);
-
-    if (transactions.length === 0) {
-      return res.json({
-        message: 'No transactions found in PDF',
-        transactions: []
-      });
-    }
-
-    res.json({
-      message: `Found ${transactions.length} potential transactions`,
-      transactions,
-      previewMode: true // Indicates these are suggestions, not saved yet
-    });
-  } catch (error) {
-    // Clean up file on error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-
-    console.error('PDF transaction import error:', error);
-    res.status(500).json({ 
-      message: 'Error processing PDF transaction history',
+      message: 'Error processing file',
       error: error.message 
     });
   }
@@ -346,7 +403,7 @@ router.use((error, req, res, next) => {
     return res.status(400).json({ message: error.message });
   }
   
-  if (error.message === 'Only image files and PDFs are allowed') {
+  if (error.message.includes('File type') || error.message.includes('not supported')) {
     return res.status(400).json({ message: error.message });
   }
 
