@@ -215,6 +215,28 @@ const UploadPage = () => {
     return 'File';
   };
 
+  const downloadCSVTemplate = async () => {
+    try {
+      const response = await axios.get('/upload/csv-template', {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'transaction-template.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setSuccess('CSV template downloaded successfully!');
+    } catch (error) {
+      console.error('Template download error:', error);
+      setError('Failed to download CSV template');
+    }
+  };
+
   return (
     <Container className="py-4">
       {/* Header */}
@@ -453,7 +475,12 @@ const UploadPage = () => {
             </Card.Header>
             <Card.Body>
               <div className="d-grid gap-2">
-                <Button variant="outline-primary" size="sm" className="quick-action-btn">
+                <Button 
+                  variant="outline-primary" 
+                  size="sm" 
+                  className="quick-action-btn"
+                  onClick={downloadCSVTemplate}
+                >
                   <i className="bi bi-download me-2"></i>
                   Download CSV Template
                 </Button>

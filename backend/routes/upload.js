@@ -70,43 +70,118 @@ const extractReceiptData = async (imagePath) => {
     let tax = 0;
     let subtotal = 0;
 
-    // Look for total amount (various patterns)
+    // Enhanced patterns to extract amounts from various formats
     const totalPatterns = [
       /total[:\s]*\$?([0-9]+\.?[0-9]*)/i,
       /amount[:\s]*\$?([0-9]+\.?[0-9]*)/i,
       /\$([0-9]+\.?[0-9]*)\s*total/i,
-      /\$([0-9]+\.[0-9]{2})/g,
+      /([0-9]+\.[0-9]{2})/g,
+      /([0-9]+\.?[0-9]*)/g,
       /grand\s*total[:\s]*\$?([0-9]+\.?[0-9]*)/i,
       /final\s*total[:\s]*\$?([0-9]+\.?[0-9]*)/i
     ];
 
+    // First, try to extract amount from the entire text
+    const fullText = text.replace(/\n/g, ' ');
+    const amountMatches = fullText.match(/([0-9]+\.?[0-9]*)/g);
+    if (amountMatches) {
+      // Find the largest reasonable amount (likely the total)
+      const amounts = amountMatches.map(match => parseFloat(match)).filter(amount => amount > 0 && amount < 10000);
+      if (amounts.length > 0) {
+        total = Math.max(...amounts);
+      }
+    }
     for (const line of lines) {
       for (const pattern of totalPatterns) {
         const match = line.match(pattern);
         if (match) {
           const amount = parseFloat(match[1]);
-          if (amount > total) {
+          if (amount > 0 && amount > total) {
             total = amount;
           }
         }
       }
     }
 
+    // If still no total found, try to parse from the raw text more aggressively
+    if (total === 0) {
+      const textNumbers = text.match(/\d+\.?\d*/g);
+      if (textNumbers) {
+        const validAmounts = textNumbers.map(n => parseFloat(n)).filter(n => n > 0 && n < 10000);
+        if (validAmounts.length > 0) {
+          total = Math.max(...validAmounts);
+        }
+      }
+    }
     // Extract merchant name (usually at the top)
     if (lines.length > 0) {
-      merchantName = lines[0].substring(0, 50); // First line, limited length
+      // Try to find a meaningful merchant name from the first few lines
+      for (let i = 0; i < Math.min(3, lines.length); i++) {
+        const line = lines[i];
+        if (line.length > 2 && !line.match(/^\d/) && !line.includes('receipt') && !line.includes('total')) {
+          merchantName = line.substring(0, 50);
+          break;
+        }
+      }
+      if (!merchantName && lines.length > 0) {
+        merchantName = lines[0].substring(0, 50);
+      }
     }
 
-    // Look for date patterns
+    // Enhanced date patterns
     const datePatterns = [
       /(\d{1,2}\/\d{1,2}\/\d{4})/,
       /(\d{1,2}-\d{1,2}-\d{4})/,
       /(\d{4}-\d{1,2}-\d{1,2})/,
       /(\d{1,2}\/\d{1,2}\/\d{2})/,
-      /(\d{1,2}-\d{1,2}-\d{2})/
+      /(\d{1,2}-\d{1,2}-\d{2})/,
+      /(\d{4}-\d{1,2}-\d{1,2})/
     ];
 
+    // Check the entire text for date patterns
+    const fullTextForDate = text.replace(/\n/g, ' ');
+    for (const pattern of datePatterns) {
+      const match = fullTextForDate.match(pattern);
+      if (match) {
+        const parsedDate = new Date(match[1]);
+        if (!isNaN(parsedDate.getTime())) {
+          date = parsedDate;
+          break;
+        }
+      }
+    }
+
+    // If no date found in full text, check line by line
+    if (isNaN(date.getTime())) {
+      for (const line of lines) {
+        for (const pattern of datePatterns) {
+          const match = line.match(pattern);
+          if (match) {
+            const parsedDate = new Date(match[1]);
+            if (!isNaN(parsedDate.getTime())) {
+              date = parsedDate;
+              break;
+            }
+          }
+        }
+        if (!isNaN(date.getTime())) break;
+      }
+    }
+
+    // If still no valid date, use current date
+    if (isNaN(date.getTime())) {
+      date = new Date();
+    }
+
+    // Extract individual items with better parsing
     for (const line of lines) {
+      // More flexible item matching
+      const itemPatterns = [
+        /(.+?)\s+([0-9]+\.?[0-9]*)/,
+        /(.+?)\s+\$([0-9]+\.?[0-9]*)/,
+        /(.+?)\s+([0-9]+\.[0-9]{2})/
+      ];
+      
       for (const pattern of datePatterns) {
         const match = line.match(pattern);
         if (match) {
@@ -117,16 +192,20 @@ const extractReceiptData = async (imagePath) => {
           }
         }
       }
-    }
-
-    // Extract individual items (basic implementation)
-    for (const line of lines) {
-      const itemMatch = line.match(/(.+?)\s+\$?([0-9]+\.?[0-9]*)/);
-      if (itemMatch && parseFloat(itemMatch[2]) > 0) {
-        items.push({
-          name: itemMatch[1].trim(),
-          amount: parseFloat(itemMatch[2])
-        });
+      
+      for (const pattern of itemPatterns) {
+        const itemMatch = line.match(pattern);
+        if (itemMatch && parseFloat(itemMatch[2]) > 0) {
+          const itemName = itemMatch[1].trim();
+          const itemAmount = parseFloat(itemMatch[2]);
+          if (itemName.length > 1 && itemAmount > 0 && itemAmount < 1000) {
+            items.push({
+              name: itemName,
+              amount: itemAmount
+            });
+          }
+          break;
+        }
       }
     }
 
@@ -408,6 +487,26 @@ router.use((error, req, res, next) => {
   }
 
   next(error);
+});
+
+// @route   GET /api/upload/csv-template
+// @desc    Download CSV template
+// @access  Private
+router.get('/csv-template', auth, (req, res) => {
+  try {
+    const csvTemplate = `date,description,amount,category
+2024-01-15,"Grocery Store",-45.67,"Food & Dining"
+2024-01-14,"Salary",3000.00,"Salary"
+2024-01-13,"Gas Station",-35.20,"Transportation"
+2024-01-12,"Coffee Shop",-4.50,"Food & Dining"`;
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="transaction-template.csv"');
+    res.send(csvTemplate);
+  } catch (error) {
+    console.error('CSV template error:', error);
+    res.status(500).json({ message: 'Error generating CSV template' });
+  }
 });
 
 module.exports = router;

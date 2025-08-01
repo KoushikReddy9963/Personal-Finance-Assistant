@@ -306,4 +306,68 @@ router.get('/stats', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/auth/export
+// @desc    Export user data
+// @access  Private
+router.get('/export', auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { format = 'csv' } = req.query;
+
+    // Get all user transactions
+    const transactions = await Transaction.find({ user: userId }).sort({ date: -1 });
+
+    if (format === 'csv') {
+      // Generate CSV
+      let csvContent = 'Date,Type,Description,Category,Amount,Payment Method,Notes\n';
+      
+      transactions.forEach(transaction => {
+        const date = new Date(transaction.date).toISOString().split('T')[0];
+        const type = transaction.type;
+        const description = `"${transaction.description.replace(/"/g, '""')}"`;
+        const category = `"${transaction.category}"`;
+        const amount = transaction.type === 'expense' ? -transaction.amount : transaction.amount;
+        const paymentMethod = transaction.paymentMethod || '';
+        const notes = `"${(transaction.notes || '').replace(/"/g, '""')}"`;
+        
+        csvContent += `${date},${type},${description},${category},${amount},${paymentMethod},${notes}\n`;
+      });
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="transactions-export.csv"');
+      res.send(csvContent);
+    } else if (format === 'json') {
+      // Generate JSON
+      const exportData = {
+        user: {
+          name: req.user.name,
+          email: req.user.email,
+          currency: req.user.currency,
+          monthlyBudget: req.user.monthlyBudget,
+          exportDate: new Date().toISOString()
+        },
+        transactions: transactions.map(t => ({
+          date: t.date,
+          type: t.type,
+          description: t.description,
+          category: t.category,
+          amount: t.amount,
+          paymentMethod: t.paymentMethod,
+          tags: t.tags,
+          notes: t.notes
+        }))
+      };
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', 'attachment; filename="transactions-export.json"');
+      res.json(exportData);
+    } else {
+      res.status(400).json({ message: 'Unsupported export format. Use csv or json.' });
+    }
+  } catch (error) {
+    console.error('Export error:', error);
+    res.status(500).json({ message: 'Error exporting data' });
+  }
+});
+
 module.exports = router;

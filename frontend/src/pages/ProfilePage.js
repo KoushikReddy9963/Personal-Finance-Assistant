@@ -129,6 +129,35 @@ const ProfilePage = () => {
     }
   };
 
+  const handleExportData = async (format = 'csv') => {
+    try {
+      setError('');
+      setSuccess('');
+
+      const response = await axios.get(`/auth/export?format=${format}`, {
+        responseType: 'blob'
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      const filename = format === 'csv' ? 'transactions-export.csv' : 'transactions-export.json';
+      link.setAttribute('download', filename);
+      
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setSuccess(`Data exported successfully as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Export error:', error);
+      setError('Failed to export data');
+    }
+  };
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -373,9 +402,21 @@ const ProfilePage = () => {
             </Card.Header>
             <Card.Body>
               <div className="d-grid gap-2">
-                <Button variant="outline-primary" size="sm">
+                <Button 
+                  variant="outline-primary" 
+                  size="sm"
+                  onClick={() => handleExportData('csv')}
+                >
                   <i className="bi bi-download me-2"></i>
-                  Export Data
+                  Export as CSV
+                </Button>
+                <Button 
+                  variant="outline-primary" 
+                  size="sm"
+                  onClick={() => handleExportData('json')}
+                >
+                  <i className="bi bi-file-earmark-code me-2"></i>
+                  Export as JSON
                 </Button>
                 <Button variant="outline-info" size="sm">
                   <i className="bi bi-question-circle me-2"></i>
