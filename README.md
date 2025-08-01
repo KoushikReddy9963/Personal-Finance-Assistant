@@ -2,7 +2,7 @@
 
 A modern, full-stack personal finance management application with OCR receipt processing, transaction tracking, and comprehensive analytics.
 
-## 🚀 Features
+## Features
 
 - **OCR Receipt Processing**: Upload receipts (JPG, PNG, PDF) and automatically extract transaction details
 - **CSV/PDF Import**: Bulk import transactions from bank statements and financial apps
@@ -11,7 +11,7 @@ A modern, full-stack personal finance management application with OCR receipt pr
 - **Budget Tracking**: Set monthly budgets and monitor spending
 - **Modern UI**: Beautiful, responsive design with gradient backgrounds and smooth animations
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Features](#-features)
 - [Technology Stack](#-technology-stack)
@@ -22,7 +22,7 @@ A modern, full-stack personal finance management application with OCR receipt pr
 - [Contributing](#-contributing)
 - [License](#-license)
 
-## 🛠 Technology Stack
+## Technology Stack
 
 ### Frontend
 - **React.js** - User interface framework
@@ -41,7 +41,7 @@ A modern, full-stack personal finance management application with OCR receipt pr
 - **PDF-parse** - PDF text extraction
 - **CSV-parser** - CSV file processing
 
-## 📦 Installation
+## Installation
 
 ### Prerequisites
 - Node.js (v14 or higher)
@@ -91,7 +91,7 @@ A modern, full-stack personal finance management application with OCR receipt pr
 
 The application will be available at `http://localhost:3000`
 
-## 🎯 Usage
+## Usage
 
 ### OCR Receipt Processing
 
@@ -115,7 +115,7 @@ The application will be available at `http://localhost:3000`
 3. View transaction history and analytics
 4. Set up monthly budgets and track spending
 
-## 📚 API Documentation
+## API Documentation
 
 ### Authentication Endpoints
 
@@ -142,7 +142,7 @@ POST /api/upload
 POST /api/upload/bulk-import
 ```
 
-## 🔄 Workflow Diagrams
+## Workflow Diagrams
 
 ### Application Overview
 
