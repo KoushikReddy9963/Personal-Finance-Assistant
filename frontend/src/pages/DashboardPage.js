@@ -79,9 +79,13 @@ const DashboardPage = () => {
     return (
       <Container className="py-5">
         <Alert variant="danger">
-          <Alert.Heading>Error Loading Dashboard</Alert.Heading>
+          <Alert.Heading>
+            <i className="bi bi-exclamation-triangle me-2"></i>
+            Error Loading Dashboard
+          </Alert.Heading>
           <p>{error}</p>
           <Button variant="outline-danger" onClick={fetchDashboardData}>
+            <i className="bi bi-arrow-clockwise me-2"></i>
             Try Again
           </Button>
         </Alert>
@@ -94,24 +98,29 @@ const DashboardPage = () => {
       {/* Welcome Section */}
       <Row className="mb-4">
         <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2 className="mb-1">Welcome back, {user?.name}!</h2>
-              <p className="text-muted mb-0">Here's your financial overview for this month</p>
-            </div>
-            <div>
-              <Link to="/transactions">
-                <Button variant="primary" className="me-2">
-                  <i className="bi bi-plus-circle me-1"></i>
-                  Add Transaction
-                </Button>
-              </Link>
-              <Link to="/upload">
-                <Button variant="outline-primary">
-                  <i className="bi bi-cloud-upload me-1"></i>
-                  Upload Receipt
-                </Button>
-              </Link>
+          <div className="dashboard-welcome">
+            <div className="d-flex justify-content-between align-items-center">
+              <div>
+                <h2 className="mb-1">
+                  <i className="bi bi-house-heart me-2"></i>
+                  Welcome back, {user?.name}!
+                </h2>
+                <p className="mb-0 opacity-75">Here's your financial overview for this month</p>
+              </div>
+              <div>
+                <Link to="/transactions">
+                  <Button variant="light" className="me-2">
+                    <i className="bi bi-plus-circle me-1"></i>
+                    Add Transaction
+                  </Button>
+                </Link>
+                <Link to="/upload">
+                  <Button variant="outline-light">
+                    <i className="bi bi-cloud-upload me-1"></i>
+                    Upload Receipt
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </Col>
@@ -182,15 +191,19 @@ const DashboardPage = () => {
           <Card className="border-0 shadow-sm">
             <Card.Header className="bg-white border-0">
               <div className="d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">Recent Transactions</h5>
+                <h5 className="mb-0">
+                  <i className="bi bi-clock-history me-2"></i>
+                  Recent Transactions
+                </h5>
                 <Link to="/transactions" className="btn btn-sm btn-outline-primary">
+                  <i className="bi bi-arrow-right me-1"></i>
                   View All
                 </Link>
               </div>
             </Card.Header>
             <Card.Body className="p-0">
               {recentTransactions.length > 0 ? (
-                <Table responsive className="mb-0">
+                <Table responsive className="mb-0 table-modern">
                   <thead>
                     <tr>
                       <th>Description</th>
@@ -216,7 +229,7 @@ const DashboardPage = () => {
                         <td className="text-muted">
                           {formatDate(transaction.date)}
                         </td>
-                        <td className={`text-end text-${getTransactionTypeColor(transaction.type)}`}>
+                        <td className={`text-end text-${getTransactionTypeColor(transaction.type)} fw-bold`}>
                           {transaction.type === 'income' ? '+' : '-'}
                           {formatCurrency(transaction.amount)}
                         </td>
@@ -246,7 +259,10 @@ const DashboardPage = () => {
           {/* Quick Actions */}
           <Card className="border-0 shadow-sm mb-4">
             <Card.Header className="bg-white border-0">
-              <h5 className="mb-0">Quick Actions</h5>
+              <h5 className="mb-0">
+                <i className="bi bi-lightning me-2"></i>
+                Quick Actions
+              </h5>
             </Card.Header>
             <Card.Body>
               <div className="d-grid gap-2">
@@ -274,7 +290,10 @@ const DashboardPage = () => {
           {user?.monthlyBudget > 0 && (
             <Card className="border-0 shadow-sm">
               <Card.Header className="bg-white border-0">
-                <h5 className="mb-0">Monthly Budget</h5>
+                <h5 className="mb-0">
+                  <i className="bi bi-piggy-bank me-2"></i>
+                  Monthly Budget
+                </h5>
               </Card.Header>
               <Card.Body>
                 <div className="mb-3">

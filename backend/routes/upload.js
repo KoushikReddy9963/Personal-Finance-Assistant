@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const Tesseract = require('tesseract.js');
 const pdf = require('pdf-parse');
+const csv = require('csv-parser');
 const Transaction = require('../models/Transaction');
 const auth = require('../middleware/auth');
 
@@ -25,11 +26,21 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  // Accept images and PDFs
-  if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+  // Accept images, PDFs, and CSV files
+  const allowedTypes = [
+    'image/jpeg',
+    'image/jpg', 
+    'image/png',
+    'image/gif',
+    'application/pdf',
+    'text/csv',
+    'application/vnd.ms-excel'
+  ];
+  
+  if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Only image files and PDFs are allowed'), false);
+    cb(new Error('Only image files, PDFs, and CSV files are allowed'), false);
   }
 };
 
@@ -40,6 +51,18 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024, // 10MB limit
   }
 });
+
+// Helper function to parse CSV files
+const parseCSVFile = async (filePath) => {
+  return new Promise((resolve, reject) => {
+    const results = [];
+    fs.createReadStream(filePath)
+      .pipe(csv())
+      .on('data', (data) => results.push(data))
+      .on('end', () => resolve(results))
+      .on('error', (error) => reject(error));
+  });
+};
 
 // Helper function to extract receipt data using OCR
 const extractReceiptData = async (imagePath) => {
@@ -61,7 +84,9 @@ const extractReceiptData = async (imagePath) => {
       /total[:\s]*\$?([0-9]+\.?[0-9]*)/i,
       /amount[:\s]*\$?([0-9]+\.?[0-9]*)/i,
       /\$([0-9]+\.?[0-9]*)\s*total/i,
-      /\$([0-9]+\.[0-9]{2})/g
+      /\$([0-9]+\.[0-9]{2})/g,
+      /grand total[:\s]*\$?([0-9]+\.?[0-9]*)/i,
+      /subtotal[:\s]*\$?([0-9]+\.?[0-9]*)/i
     ];
 
     for (const line of lines) {
@@ -85,7 +110,9 @@ const extractReceiptData = async (imagePath) => {
     const datePatterns = [
       /(\d{1,2}\/\d{1,2}\/\d{4})/,
       /(\d{1,2}-\d{1,2}-\d{4})/,
-      /(\d{4}-\d{1,2}-\d{1,2})/
+      /(\d{4}-\d{1,2}-\d{1,2})/,
+      /(\d{1,2}\/\d{1,2}\/\d{2})/,
+      /(\d{1,2}-\d{1,2}-\d{2})/
     ];
 
     for (const line of lines) {
@@ -156,14 +183,16 @@ const parsePDFTransactions = async (pdfPath) => {
             // Determine if it's income or expense based on amount sign or keywords
             const isIncome = match[3].includes('+') || 
                            description.toLowerCase().includes('deposit') ||
-                           description.toLowerCase().includes('payment received');
+                           description.toLowerCase().includes('payment received') ||
+                           description.toLowerCase().includes('salary') ||
+                           description.toLowerCase().includes('income');
 
             transactions.push({
               date,
               description,
               amount,
               type: isIncome ? 'income' : 'expense',
-              category: isIncome ? 'Other' : 'Other', // Default category
+              category: isIncome ? 'Income' : 'Other', // Default category
               paymentMethod: 'bank_transfer'
             });
           }
@@ -179,8 +208,133 @@ const parsePDFTransactions = async (pdfPath) => {
   }
 };
 
+// @route   POST /api/upload
+// @desc    Upload and process files (images, PDFs, CSV)
+// @access  Private
+router.post('/', auth, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const filePath = req.file.path;
+    let result = {};
+
+    try {
+      if (req.file.mimetype === 'text/csv' || req.file.mimetype === 'application/vnd.ms-excel') {
+        // Parse CSV file
+        const csvData = await parseCSVFile(filePath);
+        
+        // Convert CSV data to transaction format
+        const transactions = csvData.map(row => {
+          const amount = parseFloat(row.amount || row.Amount || row.AMOUNT || 0);
+          const isIncome = amount > 0 || 
+                          (row.type && row.type.toLowerCase() === 'income') ||
+                          (row.Type && row.Type.toLowerCase() === 'income');
+          
+          return {
+            date: row.date || row.Date || row.DATE || new Date().toISOString().split('T')[0],
+            description: row.description || row.Description || row.DESCRIPTION || row.description || '',
+            amount: Math.abs(amount),
+            type: isIncome ? 'income' : 'expense',
+            category: row.category || row.Category || row.CATEGORY || (isIncome ? 'Income' : 'Other'),
+            paymentMethod: row.paymentMethod || row.payment_method || 'bank_transfer'
+          };
+        });
+
+        result = {
+          type: 'csv',
+          transactions,
+          message: `Successfully parsed ${transactions.length} transactions from CSV`
+        };
+      } else if (req.file.mimetype === 'application/pdf') {
+        // Process PDF
+        const dataBuffer = fs.readFileSync(filePath);
+        const pdfData = await pdf(dataBuffer);
+        
+        // Try to determine if it's a receipt or transaction history
+        const text = pdfData.text.toLowerCase();
+        const isReceipt = text.includes('receipt') || text.includes('total') || text.includes('amount');
+        
+        if (isReceipt) {
+          // Process as receipt
+          const extractedData = {
+            total: 0,
+            merchantName: 'PDF Receipt',
+            date: new Date(),
+            items: [],
+            rawText: pdfData.text
+          };
+
+          // Try to find total amount in PDF text
+          const totalMatch = pdfData.text.match(/total[:\s]*\$?([0-9]+\.?[0-9]*)/i);
+          if (totalMatch) {
+            extractedData.total = parseFloat(totalMatch[1]);
+          }
+
+          result = {
+            type: 'receipt',
+            data: extractedData,
+            suggestedTransaction: {
+              type: 'expense',
+              amount: extractedData.total,
+              description: `Receipt from ${extractedData.merchantName}`,
+              date: extractedData.date,
+              category: 'Other',
+              paymentMethod: 'credit_card'
+            },
+            message: 'PDF receipt processed successfully'
+          };
+        } else {
+          // Process as transaction history
+          const transactions = await parsePDFTransactions(filePath);
+          result = {
+            type: 'transactions',
+            transactions,
+            message: `Found ${transactions.length} potential transactions in PDF`
+          };
+        }
+      } else {
+        // Process image using OCR
+        const extractedData = await extractReceiptData(filePath);
+        
+        result = {
+          type: 'receipt',
+          data: extractedData,
+          suggestedTransaction: {
+            type: 'expense',
+            amount: extractedData.total,
+            description: `Receipt from ${extractedData.merchantName}`,
+            date: extractedData.date,
+            category: 'Other',
+            paymentMethod: 'credit_card'
+          },
+          message: 'Receipt processed successfully'
+        };
+      }
+
+      // Clean up uploaded file
+      fs.unlinkSync(filePath);
+
+      res.json(result);
+    } catch (error) {
+      // Clean up file on error
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('File processing error:', error);
+    res.status(500).json({ 
+      message: 'Error processing file',
+      error: error.message 
+    });
+  }
+});
+
 // @route   POST /api/upload/receipt
-// @desc    Upload and process receipt image/PDF
+// @desc    Upload and process receipt image/PDF (legacy endpoint)
 // @access  Private
 router.post('/receipt', auth, upload.single('receipt'), async (req, res) => {
   try {
@@ -346,7 +500,7 @@ router.use((error, req, res, next) => {
     return res.status(400).json({ message: error.message });
   }
   
-  if (error.message === 'Only image files and PDFs are allowed') {
+  if (error.message === 'Only image files, PDFs, and CSV files are allowed') {
     return res.status(400).json({ message: error.message });
   }
 

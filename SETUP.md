@@ -1,195 +1,483 @@
-# 🚀 Quick Setup Guide
+# Personal Finance Assistant - Setup Guide
 
-## Prerequisites
+This guide provides detailed instructions for setting up the Personal Finance Assistant application with OCR functionality and all features.
 
-Before running the application, make sure you have:
+## 🚀 Quick Start
 
-1. **Node.js** (v14 or higher) - [Download](https://nodejs.org/)
-2. **MongoDB** - Either:
-   - Local installation: [Download MongoDB Community](https://www.mongodb.com/try/download/community)
-   - Or use MongoDB Atlas (cloud): [Create free account](https://www.mongodb.com/cloud/atlas)
+### Prerequisites
+- **Node.js** (v14 or higher)
+- **MongoDB** (v4.4 or higher)
+- **npm** or **yarn** package manager
 
-## 🔧 Installation Steps
-
-### 1. Install Dependencies
+### 1. Clone and Install
 
 ```bash
-# Install all dependencies (root, backend, and frontend)
-npm run install-all
-```
+# Clone the repository
+git clone <repository-url>
+cd personal-finance-assistant
 
-Or install manually:
-```bash
-# Root dependencies
+# Install backend dependencies
+cd backend
 npm install
 
-# Backend dependencies  
-cd backend && npm install
-
-# Frontend dependencies
-cd ../frontend && npm install
+# Install frontend dependencies
+cd ../frontend
+npm install
 ```
 
-### 2. Setup Environment Variables
+### 2. Environment Configuration
 
-Create `backend/.env` file with the following:
+Create `.env` file in the `backend` directory:
 
 ```env
+# Server Configuration
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/finance-tracker
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 NODE_ENV=development
+
+# Database Configuration
+MONGODB_URI=mongodb://localhost:27017/finance-tracker
+
+# JWT Configuration
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+
+# File Upload Configuration
+MAX_FILE_SIZE=10485760
+UPLOAD_PATH=./uploads
+
+# OCR Configuration
+TESSERACT_LANG=eng
+OCR_CONFIDENCE_THRESHOLD=0.7
 ```
 
-**Important:** 
-- Change `JWT_SECRET` to a strong, unique secret in production
-- Update `MONGODB_URI` if using MongoDB Atlas or different connection
+### 3. Database Setup
 
-### 3. Start MongoDB
-
-**For local MongoDB:**
+#### Local MongoDB
 ```bash
+# Start MongoDB service
 mongod
+
+# Or using Docker
+docker run -d -p 27017:27017 --name mongodb mongo:latest
 ```
 
-**For MongoDB Atlas:**
-- Replace `MONGODB_URI` in `.env` with your Atlas connection string
-- Example: `mongodb+srv://username:password@cluster.mongodb.net/finance-tracker`
+#### MongoDB Atlas (Cloud)
+1. Create account at [MongoDB Atlas](https://www.mongodb.com/atlas)
+2. Create a new cluster
+3. Get connection string
+4. Update `MONGODB_URI` in `.env`
 
-### 4. Run the Application
+### 4. Start the Application
 
-**Option A: Start both frontend and backend simultaneously**
+#### Development Mode
 ```bash
+# Terminal 1 - Backend
+cd backend
 npm run dev
+
+# Terminal 2 - Frontend
+cd frontend
+npm start
 ```
 
-**Option B: Start individually**
-
-Terminal 1 (Backend):
+#### Production Mode
 ```bash
-npm run server
-# or
-cd backend && npm run dev
+# Backend
+cd backend
+npm start
+
+# Frontend
+cd frontend
+npm run build
+npm install -g serve
+serve -s build -l 3000
 ```
 
-Terminal 2 (Frontend):
-```bash
-npm run client  
-# or
-cd frontend && npm start
+## 📁 Project Structure
+
+```
+personal-finance-assistant/
+├── backend/
+│   ├── models/
+│   │   ├── Transaction.js      # Transaction data model
+│   │   ├── User.js            # User data model
+│   │   └── Category.js        # Category data model
+│   ├── routes/
+│   │   ├── auth.js            # Authentication routes
+│   │   ├── transactions.js    # Transaction CRUD routes
+│   │   ├── upload.js          # File upload & OCR routes
+│   │   └── categories.js      # Category management routes
+│   ├── middleware/
+│   │   └── auth.js            # JWT authentication middleware
+│   ├── uploads/               # Temporary file storage
+│   ├── server.js              # Express server setup
+│   └── package.json           # Backend dependencies
+├── frontend/
+│   ├── src/
+│   │   ├── components/        # Reusable React components
+│   │   ├── contexts/          # React context providers
+│   │   ├── pages/             # Page components
+│   │   │   ├── DashboardPage.js
+│   │   │   ├── UploadPage.js
+│   │   │   ├── TransactionsPage.js
+│   │   │   ├── AnalyticsPage.js
+│   │   │   ├── ProfilePage.js
+│   │   │   ├── LoginPage.js
+│   │   │   └── RegisterPage.js
+│   │   ├── App.js             # Main app component
+│   │   ├── index.js           # React entry point
+│   │   └── index.css          # Global styles
+│   └── package.json           # Frontend dependencies
+└── README.md                  # Project documentation
 ```
 
-### 5. Access the Application
+## 🔧 OCR Configuration
 
-- **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:5000
-- **API Health Check:** http://localhost:5000/api/health
+### Tesseract.js Setup
 
-## 🧪 Testing the Setup
+The application uses Tesseract.js for OCR processing. The setup is automatic, but you can configure:
 
-### 1. Backend API Test
+```javascript
+// In backend/routes/upload.js
+const { data: { text } } = await Tesseract.recognize(imagePath, 'eng', {
+  logger: m => console.log(m),
+  // Additional options
+  tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,$ ',
+  preserve_interword_spaces: '1'
+});
+```
 
-Visit http://localhost:5000/api/health - you should see:
-```json
+### Supported File Formats
+
+#### Images (OCR Processing)
+- **JPG/JPEG**: Receipt photos
+- **PNG**: Screenshots, scanned receipts
+- **GIF**: Animated receipts (first frame processed)
+
+#### Documents (Text Extraction)
+- **PDF**: Receipts and bank statements
+- **CSV**: Transaction data import
+
+### File Size Limits
+- **Maximum**: 10MB per file
+- **Recommended**: 2-5MB for optimal OCR performance
+
+## 📊 Database Models
+
+### User Model
+```javascript
 {
-  "status": "OK",
-  "timestamp": "2024-01-01T12:00:00.000Z"
+  _id: ObjectId,
+  name: String,
+  email: String,
+  password: String (hashed),
+  currency: String (default: 'USD'),
+  monthlyBudget: Number,
+  createdAt: Date,
+  updatedAt: Date
 }
 ```
 
-### 2. Frontend Test
+### Transaction Model
+```javascript
+{
+  _id: ObjectId,
+  user: ObjectId (ref: 'User'),
+  type: String ('income' | 'expense'),
+  amount: Number,
+  description: String,
+  category: String,
+  date: Date,
+  paymentMethod: String,
+  createdAt: Date,
+  updatedAt: Date
+}
+```
 
-1. Go to http://localhost:3000
-2. You should see the FinanceTracker homepage
-3. Click "Sign Up Free" to test registration
-4. Try logging in with created credentials
+### Category Model
+```javascript
+{
+  _id: ObjectId,
+  name: String,
+  type: String ('income' | 'expense'),
+  color: String,
+  icon: String,
+  user: ObjectId (ref: 'User'),
+  createdAt: Date
+}
+```
 
-### 3. Database Connection Test
+## 🔄 API Workflow
 
-1. Register a new user
-2. If successful, MongoDB connection is working
-3. Check MongoDB to see the created user document
+### OCR Processing Flow
 
-## 📱 Current Features Available
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    participant OCR
+    participant DB
+    
+    Client->>Server: Upload file (multipart)
+    Server->>Server: Validate file type & size
+    Server->>OCR: Process with Tesseract
+    OCR->>Server: Return extracted text
+    Server->>Server: Parse transaction data
+    Server->>Server: Generate suggested transaction
+    Server->>Client: Return OCR results
+    Client->>Server: Confirm transaction
+    Server->>DB: Save transaction
+    Server->>Client: Success response
+```
 
-### ✅ Working Features
-- Beautiful responsive homepage
-- User registration and login
-- JWT authentication
-- Protected dashboard route
-- Financial overview (when you have transactions)
-- Responsive navigation
+### File Upload Process
 
-### 🚧 Coming Soon Features  
-- Transaction CRUD operations
-- Analytics and charts  
-- Receipt OCR processing
-- PDF transaction import
-- Profile management
+1. **File Validation**
+   - Check file type (JPG, PNG, PDF, CSV)
+   - Verify file size (max 10MB)
+   - Validate file integrity
 
-## 🐛 Troubleshooting
+2. **Content Processing**
+   - **Images**: OCR text extraction
+   - **PDFs**: Text extraction + parsing
+   - **CSV**: Direct data parsing
+
+3. **Data Extraction**
+   - Parse amounts, dates, descriptions
+   - Identify transaction type (income/expense)
+   - Extract merchant information
+
+4. **Preview Generation**
+   - Show extracted data to user
+   - Allow manual corrections
+   - Confirm before saving
+
+## 🎨 UI Customization
+
+### CSS Variables
+```css
+:root {
+  --primary-color: #28a745;
+  --primary-dark: #1e7e34;
+  --secondary-color: #6c757d;
+  --success-color: #28a745;
+  --danger-color: #dc3545;
+  --warning-color: #ffc107;
+  --info-color: #17a2b8;
+  --border-radius: 10px;
+  --box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  --transition: all 0.3s ease;
+}
+```
+
+### Theme Customization
+```javascript
+// In frontend/src/contexts/ThemeContext.js
+const themes = {
+  light: {
+    background: '#f8f9fa',
+    text: '#343a40',
+    primary: '#28a745'
+  },
+  dark: {
+    background: '#343a40',
+    text: '#f8f9fa',
+    primary: '#28a745'
+  }
+};
+```
+
+## 🔒 Security Configuration
+
+### JWT Configuration
+```javascript
+// In backend/middleware/auth.js
+const jwt = require('jsonwebtoken');
+
+const generateToken = (userId) => {
+  return jwt.sign({ userId }, process.env.JWT_SECRET, {
+    expiresIn: '7d'
+  });
+};
+```
+
+### File Upload Security
+```javascript
+// In backend/routes/upload.js
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = [
+    'image/jpeg', 'image/png', 'image/gif',
+    'application/pdf', 'text/csv'
+  ];
+  
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type'), false);
+  }
+};
+```
+
+## 📈 Performance Optimization
+
+### Backend Optimizations
+```javascript
+// Enable compression
+app.use(compression());
+
+// Rate limiting
+const rateLimit = require('express-rate-limit');
+app.use('/api/', rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+}));
+
+// Caching headers
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  next();
+});
+```
+
+### Frontend Optimizations
+```javascript
+// Lazy loading components
+const LazyComponent = React.lazy(() => import('./Component'));
+
+// Image optimization
+<img 
+  src={imageUrl} 
+  loading="lazy"
+  alt="Receipt"
+  style={{ maxWidth: '100%', height: 'auto' }}
+/>
+```
+
+## 🧪 Testing Setup
+
+### Backend Testing
+```bash
+cd backend
+npm install --save-dev jest supertest
+npm test
+```
+
+### Frontend Testing
+```bash
+cd frontend
+npm install --save-dev @testing-library/react @testing-library/jest-dom
+npm test
+```
+
+### Test Configuration
+```javascript
+// jest.config.js
+module.exports = {
+  testEnvironment: 'jsdom',
+  setupFilesAfterEnv: ['<rootDir>/src/setupTests.js'],
+  moduleNameMapping: {
+    '\\.(css|less|scss|sass)$': 'identity-obj-proxy'
+  }
+};
+```
+
+## 🚀 Deployment
+
+### Backend Deployment (Heroku)
+```bash
+# Create Heroku app
+heroku create your-finance-app
+
+# Set environment variables
+heroku config:set MONGODB_URI=your-mongodb-uri
+heroku config:set JWT_SECRET=your-jwt-secret
+
+# Deploy
+git push heroku main
+```
+
+### Frontend Deployment (Netlify)
+```bash
+# Build the app
+npm run build
+
+# Deploy to Netlify
+netlify deploy --prod --dir=build
+```
+
+### Environment Variables for Production
+```env
+NODE_ENV=production
+MONGODB_URI=your-production-mongodb-uri
+JWT_SECRET=your-production-jwt-secret
+PORT=5000
+```
+
+## 🔧 Troubleshooting
 
 ### Common Issues
 
-**1. MongoDB Connection Error**
-```
-Error: MongoDB connection error
-```
-- Ensure MongoDB is running (`mongod`)
-- Check `MONGODB_URI` in `.env` file
-- For Atlas: verify connection string and network access
-
-**2. Port Already in Use**
-```
-Error: listen EADDRINUSE :::3000
-```
-- Kill existing processes: `lsof -ti:3000 | xargs kill -9`
-- Or use different ports by updating scripts
-
-**3. JWT Authentication Issues**
-```
-Error: Token is not valid
-```
-- Clear browser localStorage
-- Check `JWT_SECRET` is set in `.env`
-- Re-login to get fresh token
-
-**4. CORS Errors**
-```
-Access to XMLHttpRequest has been blocked by CORS policy
-```
-- Backend should automatically handle CORS for localhost:3000
-- Check backend is running on port 5000
-- Verify proxy setting in frontend/package.json
-
-### Reset Development Environment
-
+#### OCR Not Working
 ```bash
-# Clear all node_modules
-rm -rf node_modules backend/node_modules frontend/node_modules
+# Check Tesseract installation
+npm list tesseract.js
 
-# Clear package locks
-rm -f package-lock.json backend/package-lock.json frontend/package-lock.json
+# Verify file permissions
+chmod 755 uploads/
 
-# Reinstall everything
-npm run install-all
+# Check file size limits
+# Increase if needed in multer config
 ```
 
-## 🎯 Next Steps
+#### Database Connection Issues
+```bash
+# Check MongoDB status
+sudo systemctl status mongod
 
-1. **Create your first account** - Register through the UI
-2. **Explore the dashboard** - Currently shows placeholder data
-3. **Check the API** - Use tools like Postman to test endpoints
-4. **Development** - Implement remaining features:
-   - Transaction management
-   - Data visualization  
-   - File upload features
+# Verify connection string
+mongo "mongodb://localhost:27017/finance-tracker"
 
-## 📚 Development Resources
+# Check network connectivity
+ping your-mongodb-host
+```
 
-- **API Documentation:** All endpoints are documented in README.md
-- **Database Models:** Check `backend/models/` for schema definitions
-- **Frontend Components:** Located in `frontend/src/components/`
-- **Backend Routes:** Located in `backend/routes/`
+#### File Upload Errors
+```bash
+# Check upload directory permissions
+ls -la uploads/
 
-Happy coding! 🎉
+# Verify file size limits
+# Check multer configuration
+
+# Test with smaller files first
+```
+
+### Debug Mode
+```javascript
+// Enable debug logging
+const debug = require('debug')('finance-app:*');
+
+// Add to your routes
+app.use((req, res, next) => {
+  debug(`${req.method} ${req.url}`);
+  next();
+});
+```
+
+## 📚 Additional Resources
+
+- [Tesseract.js Documentation](https://tesseract.projectnaptha.com/)
+- [MongoDB Atlas Setup](https://docs.atlas.mongodb.com/)
+- [Express.js Best Practices](https://expressjs.com/en/advanced/best-practices-performance.html)
+- [React Performance Optimization](https://reactjs.org/docs/optimizing-performance.html)
+
+## 🤝 Support
+
+For additional support:
+- Create an issue in the repository
+- Check the troubleshooting section
+- Review the API documentation
+- Contact the development team
+
+---
+
+**Happy Coding! 🚀**
