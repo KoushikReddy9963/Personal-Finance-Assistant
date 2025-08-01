@@ -2,7 +2,7 @@
 
 A modern, full-stack personal finance management application with OCR receipt processing, transaction tracking, and comprehensive analytics.
 
-## 🚀 Features
+## Features
 
 - **OCR Receipt Processing**: Upload receipts (JPG, PNG, PDF) and automatically extract transaction details
 - **CSV/PDF Import**: Bulk import transactions from bank statements and financial apps
@@ -11,18 +11,7 @@ A modern, full-stack personal finance management application with OCR receipt pr
 - **Budget Tracking**: Set monthly budgets and monitor spending
 - **Modern UI**: Beautiful, responsive design with gradient backgrounds and smooth animations
 
-## 📋 Table of Contents
-
-- [Features](#-features)
-- [Technology Stack](#-technology-stack)
-- [Installation](#-installation)
-- [Usage](#-usage)
-- [API Documentation](#-api-documentation)
-- [Workflow Diagrams](#-workflow-diagrams)
-- [Contributing](#-contributing)
-- [License](#-license)
-
-## 🛠 Technology Stack
+## Technology Stack
 
 ### Frontend
 - **React.js** - User interface framework
@@ -41,7 +30,7 @@ A modern, full-stack personal finance management application with OCR receipt pr
 - **PDF-parse** - PDF text extraction
 - **CSV-parser** - CSV file processing
 
-## 📦 Installation
+## Installation
 
 ### Prerequisites
 - Node.js (v14 or higher)
@@ -91,7 +80,7 @@ A modern, full-stack personal finance management application with OCR receipt pr
 
 The application will be available at `http://localhost:3000`
 
-## 🎯 Usage
+## Usage
 
 ### OCR Receipt Processing
 
@@ -115,7 +104,7 @@ The application will be available at `http://localhost:3000`
 3. View transaction history and analytics
 4. Set up monthly budgets and track spending
 
-## 📚 API Documentation
+## API Documentation
 
 ### Authentication Endpoints
 
@@ -142,7 +131,7 @@ POST /api/upload
 POST /api/upload/bulk-import
 ```
 
-## 🔄 Workflow Diagrams
+## Workflow Diagrams
 
 ### Application Overview
 
@@ -267,28 +256,6 @@ graph TD
     P --> R[Single Transaction Creation]
 ```
 
-## 🎨 UI/UX Features
-
-### Modern Design Elements
-- **Gradient Backgrounds**: Beautiful color gradients throughout the application
-- **Smooth Animations**: Hover effects and transitions for better user experience
-- **Responsive Design**: Works seamlessly on desktop, tablet, and mobile devices
-- **Card-based Layout**: Clean, organized information display
-- **Progress Indicators**: Visual feedback for uploads and processing
-
-### Upload Page Features
-- **Drag & Drop Interface**: Intuitive file upload experience
-- **File Type Validation**: Automatic detection and validation of supported formats
-- **Progress Tracking**: Real-time upload and processing progress
-- **Preview Modals**: Review data before importing
-- **Error Handling**: Clear error messages and recovery options
-
-### Dashboard Enhancements
-- **Financial Overview Cards**: Visual representation of key metrics
-- **Interactive Charts**: Dynamic data visualization
-- **Quick Actions**: Easy access to common tasks
-- **Budget Tracking**: Visual budget progress with color-coded indicators
-
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -302,22 +269,7 @@ NODE_ENV=development
 CORS_ORIGIN=http://localhost:3000
 ```
 
-#### Frontend (.env)
-```env
-REACT_APP_API_URL=http://localhost:5000/api
-REACT_APP_ENVIRONMENT=development
-```
-
-### File Upload Configuration
-
-The application supports the following file types:
-- **Images**: JPG, JPEG, PNG, GIF (for OCR processing)
-- **Documents**: PDF (for OCR and transaction extraction)
-- **Data**: CSV (for bulk transaction import)
-
-Maximum file size: 10MB per file
-
-## 🚀 Deployment
+##  Deployment
 
 ### Production Build
 
@@ -334,42 +286,6 @@ Maximum file size: 10MB per file
    npm run build
    ```
 
-### Docker Deployment
 
-```dockerfile
-# Backend Dockerfile
-FROM node:16-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-EXPOSE 5000
-CMD ["npm", "start"]
-```
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [Tesseract.js](https://github.com/naptha/tesseract.js) for OCR functionality
-- [Bootstrap](https://getbootstrap.com/) for the UI framework
-- [React](https://reactjs.org/) for the frontend framework
-- [Express.js](https://expressjs.com/) for the backend framework
-
-## 📞 Support
-
-For support and questions, please open an issue in the GitHub repository or contact the development team.
-
----
-
-**Made with ❤️ for better financial management**
+**Author : Y sai Koushik Reddy**
