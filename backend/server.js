@@ -31,6 +31,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Static file serving for uploads
 app.use('/uploads', express.static('uploads'));
+app.set('trust proxy', true);
 
 // Routes
 app.use('/api/auth', authRoutes);
