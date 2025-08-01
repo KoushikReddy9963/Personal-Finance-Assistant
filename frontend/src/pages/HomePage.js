@@ -131,12 +131,12 @@ const HomePage = () => {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-5 bg-light">
+      <section id="features" className="section-padding bg-light">
         <Container>
           <Row className="text-center mb-5">
             <Col>
-              <h2 className="display-5 fw-bold mb-3">Powerful Features</h2>
-              <p className="lead text-muted">Everything you need to manage your finances effectively</p>
+              <h2 className="section-title">Powerful Features</h2>
+              <p className="section-subtitle">Everything you need to manage your finances effectively</p>
             </Col>
           </Row>
           <Row>
@@ -158,12 +158,12 @@ const HomePage = () => {
       </section>
 
       {/* How it Works Section */}
-      <section id="how-it-works" className="py-5">
+      <section id="how-it-works" className="section-padding">
         <Container>
           <Row className="text-center mb-5">
             <Col>
-              <h2 className="display-5 fw-bold mb-3">How It Works</h2>
-              <p className="lead text-muted">Get started in three simple steps</p>
+              <h2 className="section-title">How It Works</h2>
+              <p className="section-subtitle">Get started in three simple steps</p>
             </Col>
           </Row>
           <Row>
@@ -202,18 +202,18 @@ const HomePage = () => {
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-5 bg-light">
+      <section id="pricing" className="section-padding bg-light">
         <Container>
           <Row className="text-center mb-5">
             <Col>
-              <h2 className="display-5 fw-bold mb-3">Simple Pricing</h2>
-              <p className="lead text-muted">Choose the plan that works best for you</p>
+              <h2 className="section-title">Simple Pricing</h2>
+              <p className="section-subtitle">Choose the plan that works best for you</p>
             </Col>
           </Row>
           <Row className="justify-content-center">
             {pricingPlans.map((plan, index) => (
               <Col md={6} lg={4} key={index} className="mb-4">
-                <Card className={`h-100 ${plan.highlighted ? 'border-primary shadow-lg' : 'border-0'}`}>
+                <Card className={`h-100 pricing-card ${plan.highlighted ? 'featured border-primary shadow-lg' : 'border-0'}`}>
                   {plan.highlighted && (
                     <div className="bg-primary text-white text-center py-2">
                       <small className="fw-bold">MOST POPULAR</small>
