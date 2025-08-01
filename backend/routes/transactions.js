@@ -313,4 +313,258 @@ router.get('/categories', auth, async (req, res) => {
   }
 });
 
+// @route   POST /api/transactions/bulk
+// @desc    Create multiple transactions
+// @access  Private
+router.post('/bulk', auth, [
+  body('transactions', 'Transactions array is required').isArray({ min: 1 }),
+  body('transactions.*.type', 'Type is required').isIn(['income', 'expense']),
+  body('transactions.*.amount', 'Amount must be a positive number').isFloat({ min: 0.01 }),
+  body('transactions.*.category', 'Category is required').trim().isLength({ min: 1 }),
+  body('transactions.*.description', 'Description is required').trim().isLength({ min: 1 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { transactions } = req.body;
+    
+    // Add user ID to each transaction
+    const transactionsWithUser = transactions.map(transaction => ({
+      ...transaction,
+      user: req.user._id
+    }));
+
+    const createdTransactions = await Transaction.insertMany(transactionsWithUser);
+    
+    res.status(201).json({
+      message: `${createdTransactions.length} transactions created successfully`,
+      transactions: createdTransactions
+    });
+  } catch (error) {
+    console.error('Bulk create transactions error:', error);
+    res.status(500).json({ message: 'Server error creating transactions' });
+  }
+});
+
+// @route   DELETE /api/transactions/bulk
+// @desc    Delete multiple transactions
+// @access  Private
+router.delete('/bulk', auth, [
+  body('transactionIds', 'Transaction IDs array is required').isArray({ min: 1 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { transactionIds } = req.body;
+    
+    const result = await Transaction.deleteMany({
+      _id: { $in: transactionIds },
+      user: req.user._id
+    });
+
+    res.json({
+      message: `${result.deletedCount} transactions deleted successfully`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Bulk delete transactions error:', error);
+    res.status(500).json({ message: 'Server error deleting transactions' });
+  }
+});
+
+// @route   PUT /api/transactions/bulk
+// @desc    Update multiple transactions
+// @access  Private
+router.put('/bulk', auth, [
+  body('updates', 'Updates array is required').isArray({ min: 1 }),
+  body('updates.*.id', 'Transaction ID is required').exists(),
+  body('updates.*.data', 'Update data is required').exists()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { updates } = req.body;
+    const updatePromises = updates.map(update => 
+      Transaction.findOneAndUpdate(
+        { _id: update.id, user: req.user._id },
+        update.data,
+        { new: true }
+      )
+    );
+
+    const updatedTransactions = await Promise.all(updatePromises);
+    
+    res.json({
+      message: `${updatedTransactions.filter(t => t).length} transactions updated successfully`,
+      transactions: updatedTransactions.filter(t => t)
+    });
+  } catch (error) {
+    console.error('Bulk update transactions error:', error);
+    res.status(500).json({ message: 'Server error updating transactions' });
+  }
+});
+
+// @route   GET /api/transactions/analytics/yearly
+// @desc    Get yearly transaction analytics
+// @access  Private
+router.get('/analytics/yearly', auth, [
+  query('year', 'Year must be a valid number').optional().isInt({ min: 2000, max: 2100 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    
+    const yearlyData = await Transaction.aggregate([
+      {
+        $match: {
+          user: req.user._id,
+          date: {
+            $gte: new Date(year, 0, 1),
+            $lt: new Date(year + 1, 0, 1)
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            month: { $month: '$date' },
+            type: '$type'
+          },
+          total: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { '_id.month': 1 }
+      }
+    ]);
+
+    // Format data for frontend consumption
+    const monthlyData = {};
+    for (let month = 1; month <= 12; month++) {
+      monthlyData[month] = { income: 0, expense: 0 };
+    }
+
+    yearlyData.forEach(item => {
+      monthlyData[item._id.month][item._id.type] = item.total;
+    });
+
+    res.json({
+      year,
+      monthlyData,
+      rawData: yearlyData
+    });
+  } catch (error) {
+    console.error('Yearly analytics error:', error);
+    res.status(500).json({ message: 'Server error fetching yearly analytics' });
+  }
+});
+
+// @route   GET /api/transactions/analytics/category-trends
+// @desc    Get category spending trends
+// @access  Private
+router.get('/analytics/category-trends', auth, [
+  query('months', 'Months must be a positive integer').optional().isInt({ min: 1, max: 24 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const months = parseInt(req.query.months) || 6;
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - months);
+
+    const categoryTrends = await Transaction.aggregate([
+      {
+        $match: {
+          user: req.user._id,
+          date: { $gte: startDate },
+          type: 'expense'
+        }
+      },
+      {
+        $group: {
+          _id: {
+            category: '$category',
+            year: { $year: '$date' },
+            month: { $month: '$date' }
+          },
+          total: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { '_id.year': 1, '_id.month': 1 }
+      }
+    ]);
+
+    res.json({ categoryTrends });
+  } catch (error) {
+    console.error('Category trends error:', error);
+    res.status(500).json({ message: 'Server error fetching category trends' });
+  }
+});
+
+// @route   GET /api/transactions/search
+// @desc    Search transactions
+// @access  Private
+router.get('/search', auth, [
+  query('q', 'Search query is required').notEmpty(),
+  query('page', 'Page must be a positive integer').optional().isInt({ min: 1 }),
+  query('limit', 'Limit must be between 1 and 100').optional().isInt({ min: 1, max: 100 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { q, page = 1, limit = 10 } = req.query;
+    
+    const searchFilter = {
+      user: req.user._id,
+      $or: [
+        { description: { $regex: q, $options: 'i' } },
+        { category: { $regex: q, $options: 'i' } },
+        { notes: { $regex: q, $options: 'i' } },
+        { tags: { $in: [new RegExp(q, 'i')] } }
+      ]
+    };
+
+    const transactions = await Transaction.find(searchFilter)
+      .sort({ date: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .populate('user', 'name email');
+
+    const total = await Transaction.countDocuments(searchFilter);
+
+    res.json({
+      transactions,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      total,
+      query: q
+    });
+  } catch (error) {
+    console.error('Search transactions error:', error);
+    res.status(500).json({ message: 'Server error searching transactions' });
+  }
+});
+
 module.exports = router;

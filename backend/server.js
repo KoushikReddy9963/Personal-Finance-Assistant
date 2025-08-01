@@ -8,6 +8,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const transactionRoutes = require('./routes/transactions');
 const uploadRoutes = require('./routes/upload');
+const categoryRoutes = require('./routes/categories');
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use('/uploads', express.static('uploads'));
 app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/categories', categoryRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
