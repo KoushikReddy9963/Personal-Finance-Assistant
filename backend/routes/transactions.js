@@ -201,6 +201,24 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/transactions/categories
+// @desc    Get available categories
+// @access  Private
+router.get('/categories', auth, async (req, res) => {
+  try {
+    const expenseCategories = Transaction.getExpenseCategories();
+    const incomeCategories = Transaction.getIncomeCategories();
+
+    res.json({
+      expense: expenseCategories,
+      income: incomeCategories
+    });
+  } catch (error) {
+    console.error('Get categories error:', error);
+    res.status(500).json({ message: 'Server error fetching categories' });
+  }
+});
+
 // @route   GET /api/transactions/analytics/summary
 // @desc    Get transaction summary and analytics
 // @access  Private
@@ -292,24 +310,6 @@ router.get('/analytics/summary', auth, [
   } catch (error) {
     console.error('Analytics error:', error);
     res.status(500).json({ message: 'Server error fetching analytics' });
-  }
-});
-
-// @route   GET /api/transactions/categories
-// @desc    Get available categories
-// @access  Private
-router.get('/categories', auth, async (req, res) => {
-  try {
-    const expenseCategories = Transaction.getExpenseCategories();
-    const incomeCategories = Transaction.getIncomeCategories();
-
-    res.json({
-      expense: expenseCategories,
-      income: incomeCategories
-    });
-  } catch (error) {
-    console.error('Get categories error:', error);
-    res.status(500).json({ message: 'Server error fetching categories' });
   }
 });
 
