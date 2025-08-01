@@ -92,10 +92,6 @@ const HomePage = () => {
                     Get Started Free
                   </Button>
                 </Link>
-                <Button variant="outline-light" size="lg" className="mb-3 px-4 py-2">
-                  <i className="bi bi-play-circle me-2"></i>
-                  Watch Demo
-                </Button>
               </div>
             </Col>
             <Col lg={6} className="text-center">
