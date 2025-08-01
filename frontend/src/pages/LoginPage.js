@@ -64,16 +64,20 @@ const LoginPage = () => {
   };
 
   return (
-    <Container className="py-5">
-      <Row className="justify-content-center">
-        <Col md={6} lg={5}>
-          <Card className="shadow border-0">
-            <Card.Body className="p-5">
-              <div className="text-center mb-4">
-                <i className="bi bi-wallet2 text-primary" style={{ fontSize: '3rem' }}></i>
-                <h2 className="mt-3 mb-2">Welcome Back</h2>
-                <p className="text-muted">Sign in to your account to continue</p>
-              </div>
+    <div className="min-vh-100 d-flex align-items-center" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+      <Container className="py-5">
+        <Row className="justify-content-center">
+          <Col md={6} lg={5}>
+            <Card className="shadow-lg border-0 card-hover-effect">
+              <Card.Body className="p-5">
+                <div className="text-center mb-4">
+                  <div className="bg-gradient-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" 
+                       style={{ width: '80px', height: '80px' }}>
+                    <i className="bi bi-wallet2 text-white" style={{ fontSize: '2.5rem' }}></i>
+                  </div>
+                  <h2 className="mb-2 fw-bold">Welcome Back</h2>
+                  <p className="text-muted">Sign in to your account to continue your financial journey</p>
+                </div>
 
               <Form onSubmit={handleSubmit}>
                 <Form.Group className="mb-3">
@@ -147,11 +151,12 @@ const LoginPage = () => {
                   </p>
                 </div>
               </Form>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
+    </div>
   );
 };
 

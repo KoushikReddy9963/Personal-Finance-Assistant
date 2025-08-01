@@ -74,6 +74,9 @@ router.get('/', auth, [
     
     if (type) filter.type = type;
     if (category) filter.category = { $regex: category, $options: 'i' };
+    if (req.query.search) {
+      filter.description = { $regex: req.query.search, $options: 'i' };
+    }
     
     if (startDate || endDate) {
       filter.date = {};
@@ -310,6 +313,42 @@ router.get('/analytics/summary', auth, [
   } catch (error) {
     console.error('Analytics error:', error);
     res.status(500).json({ message: 'Server error fetching analytics' });
+  }
+});
+
+// @route   GET /api/transactions/export
+// @desc    Export user transactions as CSV
+// @access  Private
+router.get('/export', auth, async (req, res) => {
+  try {
+    const transactions = await Transaction.find({ user: req.user._id })
+      .sort({ date: -1 })
+      .populate('user', 'name email');
+
+    // Create CSV header
+    const csvHeader = 'Date,Type,Category,Description,Amount,Payment Method,Notes\n';
+    
+    // Create CSV rows
+    const csvRows = transactions.map(transaction => {
+      const date = transaction.date.toISOString().split('T')[0];
+      const type = transaction.type;
+      const category = transaction.category;
+      const description = `"${transaction.description.replace(/"/g, '""')}"`;
+      const amount = transaction.amount;
+      const paymentMethod = transaction.paymentMethod.replace('_', ' ');
+      const notes = `"${(transaction.notes || '').replace(/"/g, '""')}"`;
+      
+      return `${date},${type},${category},${description},${amount},${paymentMethod},${notes}`;
+    }).join('\n');
+
+    const csvContent = csvHeader + csvRows;
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="transactions-${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(csvContent);
+  } catch (error) {
+    console.error('Export error:', error);
+    res.status(500).json({ message: 'Server error during export' });
   }
 });
 

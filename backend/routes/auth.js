@@ -178,4 +178,57 @@ router.put('/profile', auth, [
   }
 });
 
+// @route   PUT /api/auth/change-password
+// @desc    Change user password
+// @access  Private
+router.put('/change-password', auth, [
+  body('currentPassword', 'Current password is required').exists(),
+  body('newPassword', 'New password must be at least 6 characters').isLength({ min: 6 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    const user = req.user;
+
+    // Check current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Password change error:', error);
+    res.status(500).json({ message: 'Server error during password change' });
+  }
+});
+
+// @route   DELETE /api/auth/account
+// @desc    Delete user account and all associated data
+// @access  Private
+router.delete('/account', auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Delete all user transactions
+    await require('../models/Transaction').deleteMany({ user: userId });
+
+    // Delete user account
+    await require('../models/User').findByIdAndDelete(userId);
+
+    res.json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    console.error('Account deletion error:', error);
+    res.status(500).json({ message: 'Server error during account deletion' });
+  }
+});
+
 module.exports = router;
