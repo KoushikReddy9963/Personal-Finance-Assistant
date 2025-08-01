@@ -91,6 +91,55 @@ const DashboardPage = () => {
 
   return (
     <Container className="py-4">
+      {/* Embedded CSS */}
+      <style>{`
+        .stat-card {
+          background-color: #f8f9fa;
+          border-radius: 16px;
+          transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .stat-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05);
+        }
+        .stat-icon-wrapper {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          font-size: 22px;
+          margin-bottom: 8px;
+        }
+        .income-icon {
+          background-color: #d1e7dd;
+          color: #0f5132;
+        }
+        .expense-icon {
+          background-color: #f8d7da;
+          color: #842029;
+        }
+        .net-icon {
+          background-color: #e2e3e5;
+          color: #41464b;
+        }
+        .savings-icon {
+          background-color: #cff4fc;
+          color: #055160;
+        }
+        .stat-value {
+          font-size: 1.1rem;
+          font-weight: 600;
+          margin-bottom: 2px;
+        }
+        .stat-label {
+          font-size: 0.85rem;
+          font-weight: 500;
+          color: #6c757d;
+        }
+      `}</style>
+
       {/* Welcome Section */}
       <Row className="mb-4">
         <Col>
