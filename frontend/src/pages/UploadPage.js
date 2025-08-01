@@ -14,6 +14,7 @@ const UploadPage = () => {
   const [ocrResults, setOcrResults] = useState([]);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewData, setPreviewData] = useState([]);
+  const [processingFile, setProcessingFile] = useState(null);
   
   const fileInputRef = useRef(null);
   const dropRef = useRef(null);
@@ -46,7 +47,16 @@ const UploadPage = () => {
 
   const handleFiles = async (files) => {
     const validFiles = files.filter(file => {
-      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'text/csv', 'application/pdf'];
+      const validTypes = [
+        'image/jpeg', 
+        'image/png', 
+        'image/jpg', 
+        'image/gif',
+        'text/csv', 
+        'application/pdf',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      ];
       const maxSize = 10 * 1024 * 1024; // 10MB
       
       if (!validTypes.includes(file.type)) {
@@ -72,19 +82,21 @@ const UploadPage = () => {
       for (const file of validFiles) {
         await uploadFile(file);
       }
-      setSuccess(`Successfully uploaded ${validFiles.length} file(s)`);
+      setSuccess(`Successfully processed ${validFiles.length} file(s)`);
     } catch (error) {
       console.error('Upload error:', error);
-      setError('Failed to upload files');
+      setError('Failed to process files');
     } finally {
       setLoading(false);
       setUploadProgress(0);
+      setProcessingFile(null);
     }
   };
 
   const uploadFile = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
+    setProcessingFile(file.name);
 
     try {
       const response = await axios.post('/upload', formData, {
@@ -109,14 +121,22 @@ const UploadPage = () => {
 
       setUploadedFiles(prev => [...prev, uploadedFile]);
 
-      // If it's an image file, trigger OCR
-      if (file.type.startsWith('image/')) {
-        await performOCR(uploadedFile);
-      }
-
-      // If it's a CSV file, parse it
-      if (file.type === 'text/csv') {
-        await parseCSV(uploadedFile);
+      // Handle different file types
+      if (response.data.type === 'receipt') {
+        // Handle OCR receipt result
+        setOcrResults(prev => [...prev, {
+          fileId: uploadedFile.id,
+          fileName: file.name,
+          extractedText: response.data.extractedData.rawText,
+          suggestedTransaction: response.data.suggestedTransaction,
+          confidence: 0.85 // Mock confidence score
+        }]);
+      } else if (response.data.type === 'csv' || response.data.type === 'pdf') {
+        // Handle CSV/PDF transaction import
+        if (response.data.transactions && response.data.transactions.length > 0) {
+          setPreviewData(response.data.transactions);
+          setShowPreviewModal(true);
+        }
       }
 
     } catch (error) {
@@ -135,77 +155,9 @@ const UploadPage = () => {
     }
   };
 
-  const performOCR = async (file) => {
-    try {
-      // Simulate OCR processing (in real implementation, this would call OCR service)
-      const mockOCRResult = {
-        fileId: file.id,
-        fileName: file.name,
-        extractedText: `Receipt from Store XYZ
-Date: ${new Date().toLocaleDateString()}
-Total: $25.99
-Category: Food & Dining
-Payment: Credit Card`,
-        suggestedTransaction: {
-          type: 'expense',
-          amount: 25.99,
-          category: 'Food & Dining',
-          description: 'Store XYZ purchase',
-          date: new Date().toISOString().split('T')[0],
-          paymentMethod: 'credit_card'
-        },
-        confidence: 0.85
-      };
-
-      setOcrResults(prev => [...prev, mockOCRResult]);
-    } catch (error) {
-      console.error('OCR error:', error);
-    }
-  };
-
-  const parseCSV = async (file) => {
-    try {
-      // Simulate CSV parsing (in real implementation, this would parse the actual CSV)
-      const mockCSVData = [
-        {
-          date: '2024-01-15',
-          description: 'Grocery Store',
-          amount: -45.67,
-          category: 'Food & Dining'
-        },
-        {
-          date: '2024-01-14',
-          description: 'Salary Deposit',
-          amount: 3000.00,
-          category: 'Salary'
-        },
-        {
-          date: '2024-01-13',
-          description: 'Gas Station',
-          amount: -35.20,
-          category: 'Transportation'
-        }
-      ];
-
-      const formattedData = mockCSVData.map(row => ({
-        type: row.amount > 0 ? 'income' : 'expense',
-        amount: Math.abs(row.amount),
-        category: row.category,
-        description: row.description,
-        date: row.date,
-        paymentMethod: 'bank_transfer'
-      }));
-
-      setPreviewData(formattedData);
-      setShowPreviewModal(true);
-    } catch (error) {
-      console.error('CSV parsing error:', error);
-      setError('Failed to parse CSV file');
-    }
-  };
-
   const createTransactionFromOCR = async (ocrResult) => {
     try {
+      setLoading(true);
       await axios.post('/transactions', ocrResult.suggestedTransaction);
       setSuccess('Transaction created from receipt!');
       
@@ -214,13 +166,15 @@ Payment: Credit Card`,
     } catch (error) {
       console.error('Create transaction error:', error);
       setError('Failed to create transaction from receipt');
+    } finally {
+      setLoading(false);
     }
   };
 
   const bulkImportTransactions = async () => {
     try {
       setLoading(true);
-      await axios.post('/transactions/bulk', { transactions: previewData });
+      await axios.post('/upload/bulk-import', { transactions: previewData });
       setSuccess(`Successfully imported ${previewData.length} transactions!`);
       setShowPreviewModal(false);
       setPreviewData([]);
@@ -247,6 +201,20 @@ Payment: Credit Card`,
     }).format(amount);
   };
 
+  const getFileIcon = (fileType) => {
+    if (fileType.startsWith('image/')) return 'bi-image';
+    if (fileType === 'text/csv') return 'bi-file-earmark-spreadsheet';
+    if (fileType === 'application/pdf') return 'bi-file-earmark-pdf';
+    return 'bi-file-earmark';
+  };
+
+  const getFileTypeLabel = (fileType) => {
+    if (fileType.startsWith('image/')) return 'Image';
+    if (fileType === 'text/csv') return 'CSV';
+    if (fileType === 'application/pdf') return 'PDF';
+    return 'File';
+  };
+
   return (
     <Container className="py-4">
       {/* Header */}
@@ -254,7 +222,7 @@ Payment: Credit Card`,
         <Col>
           <h2 className="mb-1">Upload & Import</h2>
           <p className="text-muted mb-0">
-            Upload receipts for OCR processing or import transactions from CSV files
+            Upload receipts for OCR processing or import transactions from CSV/PDF files
           </p>
         </Col>
       </Row>
@@ -274,9 +242,12 @@ Payment: Credit Card`,
       <Row>
         {/* Upload Section */}
         <Col lg={8} className="mb-4">
-          <Card>
-            <Card.Header>
-              <h5 className="mb-0">File Upload</h5>
+          <Card className="upload-card">
+            <Card.Header className="upload-header">
+              <h5 className="mb-0">
+                <i className="bi bi-cloud-upload me-2"></i>
+                File Upload
+              </h5>
             </Card.Header>
             <Card.Body>
               {/* Drag and Drop Zone */}
@@ -298,7 +269,7 @@ Payment: Credit Card`,
                   <p className="text-muted small">
                     Maximum file size: 10MB per file
                   </p>
-                  <Button variant="primary" className="mt-2">
+                  <Button variant="primary" className="mt-2 upload-btn">
                     <i className="bi bi-folder2-open me-2"></i>
                     Choose Files
                   </Button>
@@ -309,7 +280,7 @@ Payment: Credit Card`,
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept=".jpg,.jpeg,.png,.pdf,.csv"
+                accept=".jpg,.jpeg,.png,.gif,.pdf,.csv"
                 onChange={handleFileSelect}
                 style={{ display: 'none' }}
               />
@@ -318,30 +289,32 @@ Payment: Credit Card`,
               {loading && uploadProgress > 0 && (
                 <div className="mt-3">
                   <div className="d-flex justify-content-between align-items-center mb-2">
-                    <span>Uploading...</span>
+                    <span>
+                      {processingFile ? `Processing ${processingFile}...` : 'Processing...'}
+                    </span>
                     <span>{uploadProgress}%</span>
                   </div>
-                  <ProgressBar now={uploadProgress} />
+                  <ProgressBar now={uploadProgress} className="upload-progress" />
                 </div>
               )}
 
               {/* Uploaded Files */}
               {uploadedFiles.length > 0 && (
                 <div className="mt-4">
-                  <h6>Recent Uploads</h6>
-                  <div className="list-group">
+                  <h6 className="upload-files-title">Recent Uploads</h6>
+                  <div className="upload-files-list">
                     {uploadedFiles.slice(-5).map((file) => (
-                      <div key={file.id} className="list-group-item d-flex justify-content-between align-items-center">
+                      <div key={file.id} className="upload-file-item">
                         <div className="d-flex align-items-center">
-                          <i className={`bi ${file.type.startsWith('image/') ? 'bi-image' : file.type === 'text/csv' ? 'bi-file-earmark-spreadsheet' : 'bi-file-earmark'} me-3 fs-4`}></i>
-                          <div>
+                          <i className={`bi ${getFileIcon(file.type)} me-3 fs-4`}></i>
+                          <div className="flex-grow-1">
                             <div className="fw-medium">{file.name}</div>
                             <small className="text-muted">
-                              {formatFileSize(file.size)} • {file.uploadedAt.toLocaleString()}
+                              {formatFileSize(file.size)} • {getFileTypeLabel(file.type)} • {file.uploadedAt.toLocaleString()}
                             </small>
                           </div>
                         </div>
-                        <Badge bg={file.status === 'completed' ? 'success' : 'danger'}>
+                        <Badge bg={file.status === 'completed' ? 'success' : 'danger'} className="upload-status-badge">
                           {file.status}
                         </Badge>
                       </div>
@@ -354,23 +327,30 @@ Payment: Credit Card`,
 
           {/* OCR Results */}
           {ocrResults.length > 0 && (
-            <Card className="mt-4">
-              <Card.Header>
-                <h5 className="mb-0">OCR Results</h5>
+            <Card className="mt-4 ocr-results-card">
+              <Card.Header className="ocr-header">
+                <h5 className="mb-0">
+                  <i className="bi bi-camera me-2"></i>
+                  OCR Results
+                </h5>
               </Card.Header>
               <Card.Body>
                 {ocrResults.map((result) => (
-                  <Card key={result.fileId} className="mb-3 border">
+                  <Card key={result.fileId} className="mb-3 border ocr-result-item">
                     <Card.Body>
                       <div className="d-flex justify-content-between align-items-start mb-3">
                         <div>
                           <h6 className="mb-1">{result.fileName}</h6>
-                          <Badge bg="info">Confidence: {(result.confidence * 100).toFixed(0)}%</Badge>
+                          <Badge bg="info" className="confidence-badge">
+                            Confidence: {(result.confidence * 100).toFixed(0)}%
+                          </Badge>
                         </div>
                         <Button 
                           variant="success" 
                           size="sm"
                           onClick={() => createTransactionFromOCR(result)}
+                          disabled={loading}
+                          className="create-transaction-btn"
                         >
                           <i className="bi bi-check-circle me-1"></i>
                           Create Transaction
@@ -380,11 +360,11 @@ Payment: Credit Card`,
                       <Row>
                         <Col md={6}>
                           <h6>Extracted Text:</h6>
-                          <pre className="bg-light p-2 small">{result.extractedText}</pre>
+                          <pre className="extracted-text">{result.extractedText}</pre>
                         </Col>
                         <Col md={6}>
                           <h6>Suggested Transaction:</h6>
-                          <div className="bg-light p-2">
+                          <div className="suggested-transaction">
                             <div><strong>Type:</strong> {result.suggestedTransaction.type}</div>
                             <div><strong>Amount:</strong> {formatCurrency(result.suggestedTransaction.amount)}</div>
                             <div><strong>Category:</strong> {result.suggestedTransaction.category}</div>
@@ -403,9 +383,12 @@ Payment: Credit Card`,
 
         {/* Help & Tips */}
         <Col lg={4}>
-          <Card className="mb-4">
-            <Card.Header>
-              <h5 className="mb-0">Upload Tips</h5>
+          <Card className="mb-4 help-card">
+            <Card.Header className="help-header">
+              <h5 className="mb-0">
+                <i className="bi bi-lightbulb me-2"></i>
+                Upload Tips
+              </h5>
             </Card.Header>
             <Card.Body>
               <div className="mb-3">
@@ -421,6 +404,12 @@ Payment: Credit Card`,
                 </p>
               </div>
               <div className="mb-3">
+                <h6><i className="bi bi-file-earmark-pdf text-danger me-2"></i>PDF Import</h6>
+                <p className="small text-muted mb-0">
+                  Upload PDF bank statements to extract transaction history automatically.
+                </p>
+              </div>
+              <div className="mb-3">
                 <h6><i className="bi bi-shield-check text-info me-2"></i>Security</h6>
                 <p className="small text-muted mb-0">
                   All uploaded files are processed securely and deleted after processing.
@@ -429,15 +418,18 @@ Payment: Credit Card`,
             </Card.Body>
           </Card>
 
-          <Card className="mb-4">
-            <Card.Header>
-              <h5 className="mb-0">CSV Format Guide</h5>
+          <Card className="mb-4 format-guide-card">
+            <Card.Header className="format-header">
+              <h5 className="mb-0">
+                <i className="bi bi-file-text me-2"></i>
+                CSV Format Guide
+              </h5>
             </Card.Header>
             <Card.Body>
               <p className="small text-muted mb-3">
                 Your CSV file should include these columns:
               </p>
-              <div className="bg-light p-3 rounded">
+              <div className="csv-format-example">
                 <code className="small">
                   date,description,amount,category<br/>
                   2024-01-15,"Grocery Store",-45.67,"Food"<br/>
@@ -452,21 +444,24 @@ Payment: Credit Card`,
             </Card.Body>
           </Card>
 
-          <Card>
-            <Card.Header>
-              <h5 className="mb-0">Quick Actions</h5>
+          <Card className="quick-actions-card">
+            <Card.Header className="actions-header">
+              <h5 className="mb-0">
+                <i className="bi bi-lightning me-2"></i>
+                Quick Actions
+              </h5>
             </Card.Header>
             <Card.Body>
               <div className="d-grid gap-2">
-                <Button variant="outline-primary" size="sm">
+                <Button variant="outline-primary" size="sm" className="quick-action-btn">
                   <i className="bi bi-download me-2"></i>
                   Download CSV Template
                 </Button>
-                <Button variant="outline-info" size="sm">
+                <Button variant="outline-info" size="sm" className="quick-action-btn">
                   <i className="bi bi-question-circle me-2"></i>
                   Upload Help
                 </Button>
-                <Button variant="outline-secondary" size="sm">
+                <Button variant="outline-secondary" size="sm" className="quick-action-btn">
                   <i className="bi bi-clock-history me-2"></i>
                   View Upload History
                 </Button>
@@ -477,16 +472,19 @@ Payment: Credit Card`,
       </Row>
 
       {/* CSV Preview Modal */}
-      <Modal show={showPreviewModal} onHide={() => setShowPreviewModal(false)} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>Import Preview</Modal.Title>
+      <Modal show={showPreviewModal} onHide={() => setShowPreviewModal(false)} size="lg" className="preview-modal">
+        <Modal.Header closeButton className="preview-header">
+          <Modal.Title>
+            <i className="bi bi-eye me-2"></i>
+            Import Preview
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <p className="text-muted mb-3">
             Review the transactions below before importing. You can edit individual transactions after import.
           </p>
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            <Table striped hover size="sm">
+          <div className="preview-table-container">
+            <Table striped hover size="sm" className="preview-table">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -498,10 +496,10 @@ Payment: Credit Card`,
               </thead>
               <tbody>
                 {previewData.map((transaction, index) => (
-                  <tr key={index}>
+                  <tr key={index} className="preview-row">
                     <td>{transaction.date}</td>
                     <td>
-                      <Badge bg={transaction.type === 'income' ? 'success' : 'danger'}>
+                      <Badge bg={transaction.type === 'income' ? 'success' : 'danger'} className="type-badge">
                         {transaction.type}
                       </Badge>
                     </td>
@@ -516,11 +514,11 @@ Payment: Credit Card`,
             </Table>
           </div>
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowPreviewModal(false)}>
+        <Modal.Footer className="preview-footer">
+          <Button variant="secondary" onClick={() => setShowPreviewModal(false)} className="cancel-btn">
             Cancel
           </Button>
-          <Button variant="primary" onClick={bulkImportTransactions} disabled={loading}>
+          <Button variant="primary" onClick={bulkImportTransactions} disabled={loading} className="import-btn">
             {loading ? 'Importing...' : `Import ${previewData.length} Transactions`}
           </Button>
         </Modal.Footer>
