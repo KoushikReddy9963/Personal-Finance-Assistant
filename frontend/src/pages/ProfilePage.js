@@ -383,6 +383,7 @@ const ProfilePage = () => {
                 <div>
                   <Badge bg="success" className="me-2">Active</Badge>
                   {user?.isVerified && <Badge bg="primary">Verified</Badge>}
+                  }
                 </div>
               </div>
               <div className="mb-3">
