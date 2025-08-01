@@ -443,31 +443,6 @@ const UploadPage = () => {
               </p>
             </Card.Body>
           </Card>
-
-          <Card className="quick-actions-card">
-            <Card.Header className="actions-header">
-              <h5 className="mb-0">
-                <i className="bi bi-lightning me-2"></i>
-                Quick Actions
-              </h5>
-            </Card.Header>
-            <Card.Body>
-              <div className="d-grid gap-2">
-                <Button variant="outline-primary" size="sm" className="quick-action-btn">
-                  <i className="bi bi-download me-2"></i>
-                  Download CSV Template
-                </Button>
-                <Button variant="outline-info" size="sm" className="quick-action-btn">
-                  <i className="bi bi-question-circle me-2"></i>
-                  Upload Help
-                </Button>
-                <Button variant="outline-secondary" size="sm" className="quick-action-btn">
-                  <i className="bi bi-clock-history me-2"></i>
-                  View Upload History
-                </Button>
-              </div>
-            </Card.Body>
-          </Card>
         </Col>
       </Row>
 

@@ -67,8 +67,6 @@ const extractReceiptData = async (imagePath) => {
     let merchantName = '';
     let date = new Date();
     let items = [];
-    let tax = 0;
-    let subtotal = 0;
 
     // Look for total amount (various patterns)
     const totalPatterns = [
@@ -147,7 +145,7 @@ const extractReceiptData = async (imagePath) => {
   }
 };
 
-// Helper function to determine category based on merchant name
+// Helper function to determine category based on merchant name or description
 const determineCategory = (merchantName) => {
   const name = merchantName.toLowerCase();
   
@@ -170,44 +168,87 @@ const determineCategory = (merchantName) => {
   }
 };
 
-// Helper function to parse CSV files
+// Improved helper function to parse CSV files
 const parseCSVFile = async (filePath) => {
   return new Promise((resolve, reject) => {
     const results = [];
     
     fs.createReadStream(filePath)
-      .pipe(csv())
+      .pipe(csv({
+        skipEmptyLines: true,
+        headers: true,
+        mapHeaders: ({ header }) => header.trim().toLowerCase()
+      }))
       .on('data', (data) => {
-        // Normalize the data
-        const normalizedData = {};
-        
-        // Handle different column name variations
-        const dateField = data.date || data.Date || data.DATE || data.transaction_date;
-        const descriptionField = data.description || data.Description || data.DESCRIPTION || data.memo || data.note;
-        const amountField = data.amount || data.Amount || data.AMOUNT || data.transaction_amount;
-        const categoryField = data.category || data.Category || data.CATEGORY || data.transaction_category;
-        
-        if (dateField && descriptionField && amountField) {
-          // Parse amount (handle different formats)
-          let amount = parseFloat(amountField.replace(/[$,]/g, ''));
+        try {
+          // Clean and normalize the data keys
+          const cleanData = {};
+          Object.keys(data).forEach(key => {
+            cleanData[key.trim().toLowerCase()] = data[key];
+          });
+
+          // Handle different column name variations
+          const dateField = cleanData.date || cleanData.transaction_date || cleanData.transactiondate;
+          const descriptionField = cleanData.description || cleanData.memo || cleanData.note || cleanData.merchant;
+          const amountField = cleanData.amount || cleanData.transaction_amount || cleanData.transactionamount;
+          const categoryField = cleanData.category || cleanData.transaction_category || cleanData.transactioncategory;
           
-          // Determine if it's income or expense
-          const isIncome = amount > 0 || 
-                          descriptionField.toLowerCase().includes('deposit') ||
-                          descriptionField.toLowerCase().includes('salary') ||
-                          descriptionField.toLowerCase().includes('payment received');
-          
-          normalizedData.date = new Date(dateField);
-          normalizedData.description = descriptionField;
-          normalizedData.amount = Math.abs(amount);
-          normalizedData.type = isIncome ? 'income' : 'expense';
-          normalizedData.category = categoryField || (isIncome ? 'Salary' : 'Other');
-          normalizedData.paymentMethod = 'bank_transfer';
-          
-          // Only add if date is valid
-          if (!isNaN(normalizedData.date.getTime())) {
-            results.push(normalizedData);
+          if (dateField && descriptionField && amountField) {
+            // Parse date
+            let parsedDate = new Date(dateField);
+            if (isNaN(parsedDate.getTime())) {
+              // Try alternative date formats
+              const dateFormats = [
+                /(\d{4}-\d{1,2}-\d{1,2})/,
+                /(\d{1,2}\/\d{1,2}\/\d{4})/,
+                /(\d{1,2}-\d{1,2}-\d{4})/
+              ];
+              
+              for (const format of dateFormats) {
+                const match = dateField.match(format);
+                if (match) {
+                  parsedDate = new Date(match[1]);
+                  if (!isNaN(parsedDate.getTime())) break;
+                }
+              }
+            }
+
+            // Parse amount (handle different formats and remove currency symbols)
+            let amount = parseFloat(String(amountField).replace(/[$,₹]/g, ''));
+            
+            // Determine if it's income or expense
+            const isIncome = amount > 0 || 
+                            String(descriptionField).toLowerCase().includes('deposit') ||
+                            String(descriptionField).toLowerCase().includes('salary') ||
+                            String(descriptionField).toLowerCase().includes('payment received') ||
+                            String(descriptionField).toLowerCase().includes('credit') ||
+                            String(descriptionField).toLowerCase().includes('refund');
+            
+            // Use absolute value for amount
+            amount = Math.abs(amount);
+            
+            // Determine category
+            let category = categoryField || (isIncome ? 'Income' : 'Other');
+            if (!categoryField && !isIncome) {
+              category = determineCategory(String(descriptionField));
+            }
+
+            const normalizedData = {
+              date: isNaN(parsedDate.getTime()) ? new Date() : parsedDate,
+              description: String(descriptionField).trim(),
+              amount: amount,
+              type: isIncome ? 'income' : 'expense',
+              category: category,
+              paymentMethod: 'bank_transfer'
+            };
+            
+            // Only add if we have valid data
+            if (normalizedData.amount > 0 && normalizedData.description.length > 0) {
+              results.push(normalizedData);
+            }
           }
+        } catch (error) {
+          console.error('Error processing CSV row:', error, data);
         }
       })
       .on('end', () => {
@@ -229,14 +270,12 @@ const parsePDFTransactions = async (pdfPath) => {
     const transactions = [];
 
     // Basic parsing for tabular transaction data
-    // This is a simplified version - real implementation would need to be more sophisticated
     for (const line of lines) {
       // Look for lines that might contain transaction data
-      // Pattern: Date, Description, Amount (various formats)
       const transactionPatterns = [
-        /(\d{1,2}\/\d{1,2}\/\d{4})\s+(.+?)\s+([+-]?\$?[0-9,]+\.?[0-9]*)/,
-        /(\d{1,2}-\d{1,2}-\d{4})\s+(.+?)\s+([+-]?\$?[0-9,]+\.?[0-9]*)/,
-        /(\d{4}-\d{1,2}-\d{1,2})\s+(.+?)\s+([+-]?\$?[0-9,]+\.?[0-9]*)/
+        /(\d{1,2}\/\d{1,2}\/\d{4})\s+(.+?)\s+([+-]?\$?₹?[0-9,]+\.?[0-9]*)/,
+        /(\d{1,2}-\d{1,2}-\d{4})\s+(.+?)\s+([+-]?\$?₹?[0-9,]+\.?[0-9]*)/,
+        /(\d{4}-\d{1,2}-\d{1,2})\s+(.+?)\s+([+-]?\$?₹?[0-9,]+\.?[0-9]*)/
       ];
 
       for (const pattern of transactionPatterns) {
@@ -244,21 +283,22 @@ const parsePDFTransactions = async (pdfPath) => {
         if (match) {
           const date = new Date(match[1]);
           const description = match[2].trim();
-          const amountStr = match[3].replace(/[$,]/g, '');
+          const amountStr = match[3].replace(/[$,₹]/g, '');
           const amount = Math.abs(parseFloat(amountStr));
 
           if (!isNaN(date.getTime()) && amount > 0 && description.length > 0) {
             // Determine if it's income or expense based on amount sign or keywords
             const isIncome = match[3].includes('+') || 
                            description.toLowerCase().includes('deposit') ||
-                           description.toLowerCase().includes('payment received');
+                           description.toLowerCase().includes('payment received') ||
+                           description.toLowerCase().includes('credit');
 
             transactions.push({
               date,
               description,
               amount,
               type: isIncome ? 'income' : 'expense',
-              category: isIncome ? 'Other' : 'Other', // Default category
+              category: isIncome ? 'Income' : determineCategory(description),
               paymentMethod: 'bank_transfer'
             });
           }
@@ -294,7 +334,24 @@ router.post('/', auth, upload.single('file'), async (req, res) => {
         result = {
           type: 'csv',
           transactions,
-          message: `Successfully parsed ${transactions.length} transactions from CSV`
+          message: `Successfully parsed ${transactions.length} transactions from CSV`,
+          quickActions: {
+            importAll: {
+              action: 'bulk-import',
+              data: transactions,
+              label: `Import all ${transactions.length} transactions`
+            },
+            preview: {
+              action: 'preview',
+              data: transactions.slice(0, 5),
+              label: 'Preview first 5 transactions'
+            },
+            selectiveImport: {
+              action: 'selective-import',
+              data: transactions,
+              label: 'Choose transactions to import'
+            }
+          }
         };
       } else if (req.file.mimetype === 'application/pdf') {
         // Process PDF file
@@ -303,24 +360,60 @@ router.post('/', auth, upload.single('file'), async (req, res) => {
         result = {
           type: 'pdf',
           transactions,
-          message: `Successfully parsed ${transactions.length} transactions from PDF`
+          message: `Successfully parsed ${transactions.length} transactions from PDF`,
+          quickActions: {
+            importAll: {
+              action: 'bulk-import',
+              data: transactions,
+              label: `Import all ${transactions.length} transactions`
+            },
+            preview: {
+              action: 'preview',
+              data: transactions.slice(0, 5),
+              label: 'Preview first 5 transactions'
+            },
+            selectiveImport: {
+              action: 'selective-import',
+              data: transactions,
+              label: 'Choose transactions to import'
+            }
+          }
         };
       } else if (req.file.mimetype.startsWith('image/')) {
         // Process image using OCR
         const extractedData = await extractReceiptData(filePath);
         
+        const suggestedTransaction = {
+          type: 'expense',
+          amount: extractedData.total || 0,
+          description: `Receipt from ${extractedData.merchantName || 'Unknown Merchant'}`,
+          date: extractedData.date,
+          category: extractedData.category,
+          paymentMethod: 'credit_card'
+        };
+        
         result = {
           type: 'receipt',
           extractedData,
-          suggestedTransaction: {
-            type: 'expense',
-            amount: extractedData.total,
-            description: `Receipt from ${extractedData.merchantName}`,
-            date: extractedData.date,
-            category: extractedData.category,
-            paymentMethod: 'credit_card'
-          },
-          message: 'Receipt processed successfully'
+          suggestedTransaction,
+          message: 'Receipt processed successfully',
+          quickActions: {
+            addTransaction: {
+              action: 'add-single',
+              data: suggestedTransaction,
+              label: 'Add this transaction'
+            },
+            editAndAdd: {
+              action: 'edit-single',
+              data: suggestedTransaction,
+              label: 'Edit and add transaction'
+            },
+            viewDetails: {
+              action: 'view-details',
+              data: extractedData,
+              label: 'View extracted details'
+            }
+          }
         };
       } else {
         throw new Error('Unsupported file type');
@@ -367,6 +460,11 @@ router.post('/bulk-import', auth, async (req, res) => {
           user: req.user._id
         };
 
+        // Validate required fields
+        if (!transactionData.amount || !transactionData.description || !transactionData.date) {
+          throw new Error('Missing required fields: amount, description, or date');
+        }
+
         const transaction = new Transaction(transactionData);
         await transaction.save();
         savedTransactions.push(transaction);
@@ -383,12 +481,104 @@ router.post('/bulk-import', auth, async (req, res) => {
       message: `Successfully imported ${savedTransactions.length} transactions`,
       imported: savedTransactions.length,
       errors: errors.length,
-      errorDetails: errors
+      errorDetails: errors,
+      transactions: savedTransactions
     });
   } catch (error) {
     console.error('Bulk import error:', error);
     res.status(500).json({ 
       message: 'Error during bulk import',
+      error: error.message 
+    });
+  }
+});
+
+// @route   POST /api/upload/selective-import
+// @desc    Import selected transactions from parsed data
+// @access  Private
+router.post('/selective-import', auth, async (req, res) => {
+  try {
+    const { transactions, selectedIndices } = req.body;
+
+    if (!Array.isArray(transactions) || !Array.isArray(selectedIndices)) {
+      return res.status(400).json({ message: 'Invalid data format' });
+    }
+
+    const selectedTransactions = selectedIndices.map(index => transactions[index]).filter(Boolean);
+
+    if (selectedTransactions.length === 0) {
+      return res.status(400).json({ message: 'No transactions selected' });
+    }
+
+    const savedTransactions = [];
+    const errors = [];
+
+    for (let i = 0; i < selectedTransactions.length; i++) {
+      try {
+        const transactionData = {
+          ...selectedTransactions[i],
+          user: req.user._id
+        };
+
+        // Validate required fields
+        if (!transactionData.amount || !transactionData.description || !transactionData.date) {
+          throw new Error('Missing required fields: amount, description, or date');
+        }
+
+        const transaction = new Transaction(transactionData);
+        await transaction.save();
+        savedTransactions.push(transaction);
+      } catch (error) {
+        errors.push({
+          index: i,
+          transaction: selectedTransactions[i],
+          error: error.message
+        });
+      }
+    }
+
+    res.json({
+      message: `Successfully imported ${savedTransactions.length} out of ${selectedTransactions.length} selected transactions`,
+      imported: savedTransactions.length,
+      errors: errors.length,
+      errorDetails: errors,
+      transactions: savedTransactions
+    });
+  } catch (error) {
+    console.error('Selective import error:', error);
+    res.status(500).json({ 
+      message: 'Error during selective import',
+      error: error.message 
+    });
+  }
+});
+
+// @route   POST /api/upload/add-single
+// @desc    Add a single transaction
+// @access  Private
+router.post('/add-single', auth, async (req, res) => {
+  try {
+    const transactionData = {
+      ...req.body,
+      user: req.user._id
+    };
+
+    // Validate required fields
+    if (!transactionData.amount || !transactionData.description || !transactionData.date) {
+      return res.status(400).json({ message: 'Missing required fields: amount, description, or date' });
+    }
+
+    const transaction = new Transaction(transactionData);
+    await transaction.save();
+
+    res.json({
+      message: 'Transaction added successfully',
+      transaction
+    });
+  } catch (error) {
+    console.error('Single transaction add error:', error);
+    res.status(500).json({ 
+      message: 'Error adding transaction',
       error: error.message 
     });
   }

@@ -367,28 +367,6 @@ const ProfilePage = () => {
             </Card.Body>
           </Card>
 
-          <Card className="mb-4">
-            <Card.Header>
-              <h5 className="mb-0">Quick Actions</h5>
-            </Card.Header>
-            <Card.Body>
-              <div className="d-grid gap-2">
-                <Button variant="outline-primary" size="sm">
-                  <i className="bi bi-download me-2"></i>
-                  Export Data
-                </Button>
-                <Button variant="outline-info" size="sm">
-                  <i className="bi bi-question-circle me-2"></i>
-                  Help & Support
-                </Button>
-                <Button variant="outline-secondary" size="sm">
-                  <i className="bi bi-shield-check me-2"></i>
-                  Privacy Settings
-                </Button>
-              </div>
-            </Card.Body>
-          </Card>
-
           <Card className="border-danger">
             <Card.Header className="bg-danger text-white">
               <h5 className="mb-0">Danger Zone</h5>
