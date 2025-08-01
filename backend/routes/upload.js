@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const Tesseract = require('tesseract.js');
 const pdf = require('pdf-parse');
+const csv = require('csv-parser');
 const Transaction = require('../models/Transaction');
 const auth = require('../middleware/auth');
 
@@ -25,11 +26,22 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  // Accept images and PDFs
-  if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+  // Accept images, PDFs, and CSV files
+  const allowedTypes = [
+    'image/jpeg',
+    'image/jpg', 
+    'image/png',
+    'image/gif',
+    'application/pdf',
+    'text/csv',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ];
+  
+  if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Only image files and PDFs are allowed'), false);
+    cb(new Error('Only image files, PDFs, and CSV files are allowed'), false);
   }
 };
 
@@ -55,13 +67,16 @@ const extractReceiptData = async (imagePath) => {
     let merchantName = '';
     let date = new Date();
     let items = [];
+    let category = 'Other';
 
     // Look for total amount (various patterns)
     const totalPatterns = [
       /total[:\s]*\$?([0-9]+\.?[0-9]*)/i,
       /amount[:\s]*\$?([0-9]+\.?[0-9]*)/i,
       /\$([0-9]+\.?[0-9]*)\s*total/i,
-      /\$([0-9]+\.[0-9]{2})/g
+      /\$([0-9]+\.[0-9]{2})/g,
+      /grand\s*total[:\s]*\$?([0-9]+\.?[0-9]*)/i,
+      /subtotal[:\s]*\$?([0-9]+\.?[0-9]*)/i
     ];
 
     for (const line of lines) {
@@ -85,7 +100,9 @@ const extractReceiptData = async (imagePath) => {
     const datePatterns = [
       /(\d{1,2}\/\d{1,2}\/\d{4})/,
       /(\d{1,2}-\d{1,2}-\d{4})/,
-      /(\d{4}-\d{1,2}-\d{1,2})/
+      /(\d{4}-\d{1,2}-\d{1,2})/,
+      /(\d{1,2}\/\d{1,2}\/\d{2})/,
+      /(\d{1,2}-\d{1,2}-\d{2})/
     ];
 
     for (const line of lines) {
@@ -98,6 +115,20 @@ const extractReceiptData = async (imagePath) => {
           }
         }
       }
+    }
+
+    // Determine category based on merchant name or keywords
+    const merchantLower = merchantName.toLowerCase();
+    if (merchantLower.includes('grocery') || merchantLower.includes('food') || merchantLower.includes('restaurant')) {
+      category = 'Food & Dining';
+    } else if (merchantLower.includes('gas') || merchantLower.includes('fuel') || merchantLower.includes('station')) {
+      category = 'Transportation';
+    } else if (merchantLower.includes('pharmacy') || merchantLower.includes('drug')) {
+      category = 'Healthcare';
+    } else if (merchantLower.includes('clothing') || merchantLower.includes('apparel')) {
+      category = 'Shopping';
+    } else if (merchantLower.includes('amazon') || merchantLower.includes('walmart') || merchantLower.includes('target')) {
+      category = 'Shopping';
     }
 
     // Extract individual items (basic implementation)
@@ -116,12 +147,43 @@ const extractReceiptData = async (imagePath) => {
       merchantName,
       date: isNaN(date.getTime()) ? new Date() : date,
       items,
+      category,
       rawText: text
     };
   } catch (error) {
     console.error('OCR extraction error:', error);
     throw new Error('Failed to extract data from receipt');
   }
+};
+
+// Helper function to parse CSV files
+const parseCSVFile = async (filePath) => {
+  return new Promise((resolve, reject) => {
+    const results = [];
+    fs.createReadStream(filePath)
+      .pipe(csv())
+      .on('data', (data) => {
+        // Handle different CSV formats
+        const transaction = {
+          date: data.date || data.Date || data.DATE,
+          description: data.description || data.Description || data.DESCRIPTION || data.note || data.Note,
+          amount: parseFloat(data.amount || data.Amount || data.AMOUNT || 0),
+          category: data.category || data.Category || data.CATEGORY || 'Other',
+          type: data.type || data.Type || data.TYPE || (parseFloat(data.amount || data.Amount || data.AMOUNT || 0) > 0 ? 'income' : 'expense'),
+          paymentMethod: data.paymentMethod || data.payment_method || data.PaymentMethod || 'bank_transfer'
+        };
+        
+        if (transaction.date && transaction.description && transaction.amount !== 0) {
+          results.push(transaction);
+        }
+      })
+      .on('end', () => {
+        resolve(results);
+      })
+      .on('error', (error) => {
+        reject(error);
+      });
+  });
 };
 
 // Helper function to parse PDF transaction history
@@ -202,6 +264,7 @@ router.post('/receipt', auth, upload.single('receipt'), async (req, res) => {
         merchantName: 'PDF Receipt',
         date: new Date(),
         items: [],
+        category: 'Other',
         rawText: pdfData.text
       };
 
@@ -226,7 +289,7 @@ router.post('/receipt', auth, upload.single('receipt'), async (req, res) => {
         amount: extractedData.total,
         description: `Receipt from ${extractedData.merchantName}`,
         date: extractedData.date,
-        category: 'Other',
+        category: extractedData.category,
         paymentMethod: 'credit_card'
       }
     });
@@ -239,6 +302,53 @@ router.post('/receipt', auth, upload.single('receipt'), async (req, res) => {
     console.error('Receipt processing error:', error);
     res.status(500).json({ 
       message: 'Error processing receipt',
+      error: error.message 
+    });
+  }
+});
+
+// @route   POST /api/upload/csv
+// @desc    Upload and parse CSV file for bulk import
+// @access  Private
+router.post('/csv', auth, upload.single('csv'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No CSV file uploaded' });
+    }
+
+    if (req.file.mimetype !== 'text/csv' && 
+        req.file.mimetype !== 'application/vnd.ms-excel' &&
+        req.file.mimetype !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+      return res.status(400).json({ message: 'Only CSV files are allowed' });
+    }
+
+    const filePath = req.file.path;
+    const transactions = await parseCSVFile(filePath);
+
+    // Clean up uploaded file
+    fs.unlinkSync(filePath);
+
+    if (transactions.length === 0) {
+      return res.json({
+        message: 'No valid transactions found in CSV',
+        transactions: []
+      });
+    }
+
+    res.json({
+      message: `Found ${transactions.length} transactions in CSV`,
+      transactions,
+      previewMode: true
+    });
+  } catch (error) {
+    // Clean up file on error
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    console.error('CSV parsing error:', error);
+    res.status(500).json({ 
+      message: 'Error processing CSV file',
       error: error.message 
     });
   }
@@ -346,7 +456,7 @@ router.use((error, req, res, next) => {
     return res.status(400).json({ message: error.message });
   }
   
-  if (error.message === 'Only image files and PDFs are allowed') {
+  if (error.message === 'Only image files, PDFs, and CSV files are allowed') {
     return res.status(400).json({ message: error.message });
   }
 

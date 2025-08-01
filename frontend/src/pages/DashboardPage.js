@@ -94,24 +94,26 @@ const DashboardPage = () => {
       {/* Welcome Section */}
       <Row className="mb-4">
         <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2 className="mb-1">Welcome back, {user?.name}!</h2>
-              <p className="text-muted mb-0">Here's your financial overview for this month</p>
-            </div>
-            <div>
-              <Link to="/transactions">
-                <Button variant="primary" className="me-2">
-                  <i className="bi bi-plus-circle me-1"></i>
-                  Add Transaction
-                </Button>
-              </Link>
-              <Link to="/upload">
-                <Button variant="outline-primary">
-                  <i className="bi bi-cloud-upload me-1"></i>
-                  Upload Receipt
-                </Button>
-              </Link>
+          <div className="dashboard-welcome">
+            <div className="d-flex justify-content-between align-items-center">
+              <div>
+                <h2 className="mb-1">Welcome back, {user?.name}!</h2>
+                <p className="mb-0 opacity-75">Here's your financial overview for this month</p>
+              </div>
+              <div>
+                <Link to="/transactions">
+                  <Button variant="light" className="me-2">
+                    <i className="bi bi-plus-circle me-1"></i>
+                    Add Transaction
+                  </Button>
+                </Link>
+                <Link to="/upload">
+                  <Button variant="outline-light">
+                    <i className="bi bi-cloud-upload me-1"></i>
+                    Upload Receipt
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </Col>
@@ -190,7 +192,7 @@ const DashboardPage = () => {
             </Card.Header>
             <Card.Body className="p-0">
               {recentTransactions.length > 0 ? (
-                <Table responsive className="mb-0">
+                <Table responsive className="mb-0 table-enhanced">
                   <thead>
                     <tr>
                       <th>Description</th>
