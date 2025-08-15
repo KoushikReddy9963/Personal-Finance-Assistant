@@ -13,19 +13,7 @@ A modern, full-stack personal finance management application with OCR receipt pr
 
 ## Technology Stack
 
-### Frontend
-- **React.js** - User interface framework
-- **Bootstrap 5** - CSS framework for responsive design
-- **Axios** - HTTP client for API communication
-- **React Router** - Client-side routing
-
-### Backend
-- **Node.js** - Runtime environment
-- **Express.js** - Web application framework
-- **MongoDB** - NoSQL database
-- **Mongoose** - MongoDB object modeling
-- **JWT** - Authentication and authorization
-- **Multer** - File upload handling
+- **MERN Stack** - Used Mern stack
 - **Tesseract.js** - OCR (Optical Character Recognition)
 - **PDF-parse** - PDF text extraction
 - **CSV-parser** - CSV file processing
